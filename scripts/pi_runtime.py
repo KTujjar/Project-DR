@@ -94,7 +94,7 @@ def status():
             'backend':None if not h else {'version':h.get('version'),'mode':h['mode'],'motion_enabled':h['motion_enabled'],'armed':h['control']['armed'],
                 'sensors':{k:{'status':v['status'],'hz':v['hz'],'age_s':v['age_s']} for k,v in h['sensors'].items()}}}
 
-def stop():
+def stop(backend_only=False):
     state=load()
     # Shutdown uses the backend's own stop path, then signals only owned groups.
     try:
@@ -102,7 +102,7 @@ def stop():
         request=urllib.request.Request('http://127.0.0.1:8765/api/control/stop',b'',headers={'Authorization':'Bearer '+token},method='POST')
         urllib.request.urlopen(request,timeout=2).read()
     except Exception:pass
-    for name in ('dashboard','bringup'):
+    for name in (('dashboard',) if backend_only else ('dashboard','bringup')):
         record=state.get(name)
         if alive(record):
             (os.killpg if os.getpgid(record['pid'])==record['pid'] else os.kill)(record['pid'],signal.SIGINT)
@@ -110,13 +110,13 @@ def stop():
                 if not alive(record):break
                 time.sleep(.1)
             if alive(record):(os.killpg if os.getpgid(record['pid'])==record['pid'] else os.kill)(record['pid'],signal.SIGTERM)
-    save({});return status()
+    save({k:v for k,v in state.items() if backend_only and k!='dashboard'});return status()
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument('action',choices=['start','ensure','status','stop']);p.add_argument('--allow-motion',action='store_true');p.add_argument('--bypass-obstacles',action='store_true');a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('action',choices=['start','ensure','status','stop']);p.add_argument('--allow-motion',action='store_true');p.add_argument('--bypass-obstacles',action='store_true');p.add_argument('--backend-only',action='store_true');a=p.parse_args()
     lock=(RUNTIME/'services.lock').open('a');fcntl.flock(lock,fcntl.LOCK_EX)
     try:
-        result=stop() if a.action=='stop' else status() if a.action=='status' else ensure(a.action=='start',a.allow_motion,a.bypass_obstacles)
+        result=stop(a.backend_only) if a.action=='stop' else status() if a.action=='status' else ensure(a.action=='start',a.allow_motion,a.bypass_obstacles)
         print(json.dumps(result,indent=2))
     except Exception as exc:print(json.dumps({'error':str(exc)}));raise SystemExit(1)
 if __name__=='__main__':main()

@@ -13,14 +13,17 @@ On this Mac, from `/Users/coletriebold/Documents/Turtbot`:
 ./scripts/start.sh                   # deploy, verify/start services, open browser
 ./scripts/status.sh                  # process state + actual sensor freshness/rates
 ./scripts/diagnose.sh                # one-command diagnostic report
-./scripts/restart.sh                 # restart app/relay and reopen the dashboard
+./scripts/restart.sh                 # restart app/relay; preserve running hardware drivers
 ./scripts/stop.sh                    # stop this app/relay; stop owned bringup only
 ```
 
 Dashboard: **http://127.0.0.1:8872/**. Reopen that URL without restarting anything.
 Use `--no-browser` with start/restart if a browser tab is already open.
-SSH can ask for the `turtle` account password if the authenticated master expired;
-no SSH password is saved or hardcoded. Keep Ethernet connected. The known-hosts
+This Mac now has an explicitly approved dedicated SSH key in `.robot/id_ed25519`.
+The supervisor recreates a lost SSH master and local tunnel without a password.
+The private key is ignored by Git and must never be copied into the repository.
+Fresh clones without an enrolled key can ask for the Pi account password in the
+terminal; no SSH password is saved or hardcoded. Keep Ethernet connected. The known-hosts
 file is `.robot/known_hosts`; scoped IPv6 target is in `.robot/connection.json`.
 Set `TURTBOT_TARGET` if the Ethernet adapter/address changes.
 
@@ -48,6 +51,11 @@ the robot to repair an application dependency.
 5. Supervise a Mac relay and the Pi backend. The camera worker is started through
    an SSH session, owns a camera lock, and exits if capture fails or the session ends.
 6. Open the dashboard disarmed. Default start locks motion; explicit motion flags enable manual arming.
+
+A lifetime file lock prevents duplicate supervisors, including launches through
+differently capitalized paths on macOS. `restart.sh` stops only the backend/relay
+and preserves ROS bringup even when this launcher originally started it.
+See [CONNECTION.md](CONNECTION.md) for the diagnosed failure and recovery checks.
 
 No systemd units or login/boot services were installed. The Mac supervisor is a
 user process. Backend crashes are restarted; each backend starts disarmed.

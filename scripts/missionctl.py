@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """One-command mission launch/restart/status. Uses the existing private SSH path."""
-import argparse,json,os,secrets,signal,subprocess,sys,tarfile,time,urllib.request,webbrowser,fcntl
+import argparse,json,os,secrets,signal,subprocess,sys,tarfile,time,urllib.request,webbrowser,fcntl,shlex
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1];RUNTIME=ROOT/'.robot/runtime';CONTROL=ROOT/'.robot/control'
 URL='http://127.0.0.1:8872'
@@ -16,7 +16,8 @@ def config():
     try:return json.loads((RUNTIME/'config.json').read_text())
     except (OSError,ValueError):return {'target':os.environ.get('TURTBOT_TARGET',defaults()),'mock':False,'allow_motion':False}
 def base(c,batch=True):
-    return ['ssh','-S',str(CONTROL),'-o','UserKnownHostsFile='+str(ROOT/'.robot/known_hosts'),'-o','StrictHostKeyChecking=yes','-o','ConnectTimeout=5']+(['-o','BatchMode=yes'] if batch else [])+[c['target']]
+    identity=ROOT/'.robot/id_ed25519'
+    return ['ssh','-S',str(CONTROL),'-o','UserKnownHostsFile='+str(ROOT/'.robot/known_hosts'),'-o','StrictHostKeyChecking=yes','-o','ConnectTimeout=5','-o','ServerAliveInterval=5','-o','ServerAliveCountMax=3']+(['-i',str(identity),'-o','IdentitiesOnly=yes'] if identity.exists() else [])+(['-o','BatchMode=yes'] if batch else [])+[c['target']]
 def ssh(c,args,timeout=20):
     import shlex
     command='cd "$HOME/turtbot-dashboard" && '+shlex.join(args)
@@ -38,10 +39,34 @@ def terminate(proc):
 def supervisor_pid():
     try:
         pid=int((RUNTIME/'supervisor.pid').read_text());cmd=subprocess.check_output(['ps','-p',str(pid),'-o','command='],text=True)
-        return pid if str(ROOT/'scripts/supervisor.py') in cmd else None
+        return pid if supervisor_command(cmd) else None
     except (OSError,ValueError,subprocess.CalledProcessError):return None
 
-def stop(c):
+def supervisor_command(cmd):
+    # macOS commonly reaches the same case-insensitive directory through both
+    # Documents/Turtbot and documents/turtbot. Compare filesystem identities.
+    for arg in shlex.split(cmd):
+        if not arg.endswith('/scripts/supervisor.py'):continue
+        try:
+            if Path(arg).samefile(ROOT/'scripts/supervisor.py'):return True
+        except OSError:pass
+    return False
+
+def ensure_transport(c,batch=True):
+    check=subprocess.run(['ssh','-S',str(CONTROL),'-O','check',c['target']],capture_output=True,timeout=6)
+    if check.returncode:
+        command=base(c,batch)[:-1]+['-M','-fN','-o','ControlPath='+str(CONTROL),'-o','ControlPersist=12h',c['target']]
+        result=subprocess.run(command,capture_output=batch,text=True,timeout=12 if batch else None,stdin=subprocess.DEVNULL if batch else None)
+        if result.returncode:raise RuntimeError('SSH authentication or link unavailable; run ./scripts/restart.sh in a terminal to log in again. '+((result.stderr or '')[-200:]))
+    # A master can survive with its local forward missing after another launcher
+    # canceled it. Repair only this loopback forward, never replace another app.
+    if health() is None:
+        result=subprocess.run(['ssh','-S',str(CONTROL),'-O','forward','-L','127.0.0.1:8872:127.0.0.1:8765',c['target']],capture_output=True,text=True,timeout=6)
+        if result.returncode:
+            listeners=subprocess.run(['lsof','-nP','-iTCP:8872','-sTCP:LISTEN'],capture_output=True,text=True).stdout
+            if 'Address already in use' not in result.stderr or 'ssh' not in listeners:raise RuntimeError('Could not restore dashboard tunnel: '+result.stderr.strip())
+
+def stop(c,keep_hardware=False):
     pid=supervisor_pid()
     if pid:
         os.killpg(pid,signal.SIGTERM)
@@ -49,7 +74,7 @@ def stop(c):
             if not supervisor_pid():break
             time.sleep(.1)
     if not c['mock']:
-        try:print(json.dumps(ssh(c,['python3','scripts/pi_runtime.py','stop']),indent=2))
+        try:print(json.dumps(ssh(c,['python3','scripts/pi_runtime.py','stop']+(['--backend-only'] if keep_hardware else [])),indent=2))
         except Exception as exc:print('Pi unreachable. Browser/ROS watchdog remains responsible for stopping:',exc)
     if not c['mock']:
         subprocess.run(['ssh','-S',str(CONTROL),'-O','cancel','-L','127.0.0.1:8872:127.0.0.1:8765',c['target']],capture_output=True)
@@ -62,9 +87,7 @@ def start(c,no_browser=False):
     token=RUNTIME/'service.token'
     if not token.exists():token.write_text(secrets.token_urlsafe(32));token.chmod(0o600)
     if not c['mock']:
-        check=subprocess.run(['ssh','-S',str(CONTROL),'-O','check',c['target']],capture_output=True)
-        if check.returncode:
-            subprocess.run(['ssh','-M','-fN','-o','ControlPath='+str(CONTROL),'-o','ControlPersist=12h','-o','ServerAliveInterval=10','-o','ServerAliveCountMax=30','-o','UserKnownHostsFile='+str(ROOT/'.robot/known_hosts'),'-o','StrictHostKeyChecking=yes',c['target']],check=True)
+        ensure_transport(c,batch=False)
         archive=RUNTIME/'deploy.tar.gz'
         with tarfile.open(archive,'w:gz') as tar:
             for folder in ('dashboard','scripts','camera','models'):
@@ -89,8 +112,7 @@ def start(c,no_browser=False):
         print(ssh(c,['python3','camera/configure.py','--width',str(c.get('camera_width',640)),'--height',str(c.get('camera_height',480)),'--gain',str(c.get('camera_gain',0)),'--fps',str(c.get('camera_fps',15))]))
     (RUNTIME/'config.json').write_text(json.dumps(c,indent=2))
     log=(RUNTIME/'supervisor.log').open('ab',buffering=0)
-    proc=subprocess.Popen([sys.executable,str(ROOT/'scripts/supervisor.py')],cwd=ROOT,stdout=log,stderr=log,start_new_session=True)
-    (RUNTIME/'supervisor.pid').write_text(str(proc.pid))
+    proc=subprocess.Popen([sys.executable,str(ROOT/'scripts/supervisor.py')],cwd=ROOT,stdin=subprocess.DEVNULL,stdout=log,stderr=log,start_new_session=True)
     deadline=time.monotonic()+25
     while time.monotonic()<deadline:
         h=health()
@@ -113,7 +135,7 @@ def main():
         c={'target':os.environ.get('TURTBOT_TARGET',c['target']),'mock':a.mock,'allow_motion':a.allow_motion,'camera_path':os.environ.get('TURTBOT_CAMERA_PATH','auto'),'camera_width':int(os.environ.get('TURTBOT_CAMERA_WIDTH',640)),'camera_height':int(os.environ.get('TURTBOT_CAMERA_HEIGHT',480)),'camera_gain':int(os.environ.get('TURTBOT_CAMERA_GAIN',0)),'camera_fps':int(os.environ.get('TURTBOT_CAMERA_FPS',15))}
         c['bypass_obstacles']=a.bypass_obstacles
     try:
-        if a.action in ('stop','restart'):stop(c)
+        if a.action in ('stop','restart'):stop(c,keep_hardware=a.action=='restart')
         if a.action in ('start','restart'):start(c,a.no_browser)
         elif a.action in ('status','diagnose'):
             result={'supervisor_pid':supervisor_pid(),'dashboard_url':URL,'health':health()}

@@ -51,3 +51,7 @@ operator approval alone does not override an active LiDAR veto.
 ## Camera quality correction (2026-10-31)
 
 Removed 7× ISP viewing gain and fixed WB cast; added camera/metering.h and C metering tests, bounded sensor AE and gray-world WB. Changed hardware codec to existing /dev/video31 fixed JPEG Q92; added no-stretch RAW fallback, image-quality telemetry/warnings, relay/ingest/video/model API SHA-256 integrity. Native 720p tested but active 640×480 retained for latency. Added diagnostics/verify_camera_quality.py and diagnostics/camera-quality/REPORT.md. Seventy tests pass. No ROS/boot/driver changes. Manual override remains enabled/disarmed.
+
+## Connection reliability repair (2026-10-31)
+
+Added CONNECTION.md and diagnostics/verify_connection.py. Updated launcher/supervisor/Pi runtime/camera SSH path with lifetime singleton lock, filesystem-identity PID checks, explicit background stdin, SSH key/forward recovery and backend-only restart that preserves bringup. Dedicated SSH credential installed only after explicit operator approval; private key/runtime remain ignored. Expanded startup regression tests;76 tests pass. Live SSH loss and missing-forward recovery verified, plus a45-second continuous sensor check.

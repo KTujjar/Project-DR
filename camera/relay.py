@@ -10,6 +10,7 @@ from PIL import Image
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 from camera.protocol import read_frame
 from camera.convert_raw10 import unpack_raw10,render,color_matrix
+from scripts.missionctl import base as ssh_base
 
 
 def run(target,control,url,token,stop=None,path='auto'):
@@ -18,8 +19,10 @@ def run(target,control,url,token,stop=None,path='auto'):
     while not stop.is_set():
         proc=None
         try:
-            cmd=['ssh','-S',str(control),'-o','BatchMode=yes','-o','ConnectTimeout=5',target,'exec "$HOME/turtbot-dashboard/camera/'+('isp_worker' if active_path=='isp' else 'capture_worker')+'"']
-            proc=subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=sys.stderr,bufsize=0)
+            cmd=ssh_base({'target':target})
+            cmd[cmd.index('-S')+1]=str(control)
+            cmd+=['exec "$HOME/turtbot-dashboard/camera/'+('isp_worker' if active_path=='isp' else 'capture_worker')+'"']
+            proc=subprocess.Popen(cmd,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=sys.stderr,bufsize=0)
             latest={'header':None,'data':None,'error':None};condition=threading.Condition()
             def reader():
                 try:

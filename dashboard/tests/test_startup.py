@@ -1,7 +1,7 @@
 import hashlib,tempfile,unittest
 from pathlib import Path
 from unittest.mock import patch
-from scripts import pi_runtime, missionctl
+from scripts import pi_runtime, missionctl, supervisor
 
 class StartupTests(unittest.TestCase):
     def setUp(self):
@@ -42,6 +42,12 @@ class StartupTests(unittest.TestCase):
                 pi_runtime.ensure(allow_motion=True,bypass_obstacles=True)
             spawn.assert_not_called()
 
+    def test_backend_only_stop_preserves_bringup_ownership(self):
+        state={'dashboard':{'pid':100,'start':'one'},'bringup':{'pid':200,'start':'two'}}
+        with patch.object(pi_runtime,'load',return_value=state),patch.object(pi_runtime,'alive',return_value=False),patch.object(pi_runtime,'save') as save:
+            pi_runtime.stop(backend_only=True)
+            save.assert_called_once_with({'bringup':state['bringup']})
+
 class ConnectionDefaultsTests(unittest.TestCase):
     def test_fresh_clone_can_select_mock_without_private_connection_file(self):
         with tempfile.TemporaryDirectory() as tmp,patch.object(missionctl,'ROOT',Path(tmp)),patch.dict('os.environ',{},clear=True):
@@ -49,4 +55,24 @@ class ConnectionDefaultsTests(unittest.TestCase):
     def test_explicit_target_does_not_require_private_connection_file(self):
         with tempfile.TemporaryDirectory() as tmp,patch.object(missionctl,'ROOT',Path(tmp)),patch.dict('os.environ',{'TURTBOT_TARGET':'user@robot.example'},clear=True):
             self.assertEqual(missionctl.defaults(),'user@robot.example')
+
+    def test_pid_owner_uses_filesystem_identity_across_alias_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)/'Project';(root/'scripts').mkdir(parents=True);(root/'scripts/supervisor.py').write_text('# test')
+            alias=Path(tmp)/'alias';alias.symlink_to(root,target_is_directory=True)
+            with patch.object(missionctl,'ROOT',root):
+                self.assertTrue(missionctl.supervisor_command('python3 '+str(alias/'scripts/supervisor.py')))
+                self.assertFalse(missionctl.supervisor_command('python3 /unrelated/scripts/supervisor.py'))
+
+    def test_duplicate_daemon_is_rejected_before_config_or_process_creation(self):
+        with tempfile.TemporaryDirectory() as tmp,patch.object(supervisor,'RUNTIME',Path(tmp)),patch.object(supervisor.fcntl,'flock',side_effect=BlockingIOError),patch.object(supervisor.subprocess,'Popen') as spawn:
+            supervisor.main();spawn.assert_not_called()
+            self.assertFalse((Path(tmp)/'supervisor.pid').exists())
+
+    def test_missing_forward_is_repaired_without_replacing_live_master(self):
+        import subprocess
+        calls=[subprocess.CompletedProcess([],0,b'',b''),subprocess.CompletedProcess([],0,'','')]
+        with patch.object(missionctl,'health',return_value=None),patch.object(missionctl.subprocess,'run',side_effect=calls) as run:
+            missionctl.ensure_transport({'target':'user@robot'})
+            self.assertIn('forward',run.call_args.args[0]);self.assertEqual(run.call_count,2)
 if __name__=='__main__':unittest.main()

@@ -2,6 +2,7 @@
 
 The existing dashboard is upgraded and running at http://127.0.0.1:8872 through
 the private Ethernet SSH tunnel. Start with [OPERATOR.md](OPERATOR.md).
+Connection recovery details: [CONNECTION.md](CONNECTION.md).
 
 ```bash
 ./scripts/start.sh
