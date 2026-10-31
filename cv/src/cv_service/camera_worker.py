@@ -18,9 +18,18 @@ from .timeutil import iso_from_epoch
 log = logging.getLogger(__name__)
 
 MAX_BACKOFF_S = 10.0
-JPEG_EVERY_S = 0.2  # publish at most ~5 frames per second
+JPEG_EVERY_S = 0.1  # publish at most 10 frames per second
 JPEG_MAX_WIDTH = 640
 PUBLISH_EVERY_S = 1.0  # heartbeat so the dashboard sees fresh timestamps
+
+
+def is_due(last: float, interval: float, now: float) -> bool:
+    """True once `interval` has passed, allowing 10% early.
+
+    Camera frames arrive at fixed gaps (33 ms at 30 fps), so three of them span 99.9 ms.
+    Without the slack a 0.1 s interval would wait for a fourth frame and run at 7.5 fps.
+    """
+    return now - last >= interval * 0.9
 
 
 class FrameSource(Protocol):
@@ -184,14 +193,14 @@ class CameraWorker(threading.Thread):
         """Tracks people when due, publishes the count (immediately when a pass ends) and the annotated frame."""
         now = self._clock()
         with self._lock:
-            if now - self._last_infer >= self._infer_every_s:
+            if is_due(self._last_infer, self._infer_every_s, now):
                 self._last_infer = now
                 self._detections = self._detector.detect(frame)
                 passes_before = self._counter.passes_completed
                 self._counter.observe([(d.track_id, d.score) for d in self._detections], now)
                 if self._counter.passes_completed != passes_before or now - self._last_publish >= PUBLISH_EVERY_S:
                     self._publish(now)
-            if now - self._last_jpeg >= JPEG_EVERY_S:
+            if is_due(self._last_jpeg, JPEG_EVERY_S, now):
                 self._last_jpeg = now
                 jpeg = encode_jpeg(annotate(frame, self._detections, self._conf, self._counter))
                 self._store.record_frame(self.cfg.camera_id, jpeg, at=now)

@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from fakes import FakeDetector, FakeSource
 
-from cv_service.camera_worker import CameraWorker, annotate, encode_jpeg
+from cv_service.camera_worker import CameraWorker, annotate, encode_jpeg, is_due
 from cv_service.config import CameraConfig
 from cv_service.counting import PassCounter
 from cv_service.detector import Detection
@@ -134,3 +134,13 @@ def test_annotate_and_encode():
     big = np.zeros((720, 1280, 3), dtype=np.uint8)
     decoded = cv2.imdecode(np.frombuffer(encode_jpeg(big), np.uint8), cv2.IMREAD_COLOR)
     assert decoded.shape == (360, 640, 3)
+
+
+def test_is_due_keeps_10_fps_with_30_fps_camera():
+    frames = [i / 30 for i in range(31)]  # one second of a 30 fps camera
+    last, fired = float("-inf"), 0
+    for t in frames:
+        if is_due(last, 0.1, t):
+            last, fired = t, fired + 1
+    assert fired == 11  # every third frame, including t=0 and t=1
+    assert not is_due(0.0, 0.1, 0.05)
