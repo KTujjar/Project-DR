@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { MapPanel } from './components/MapPanel/MapPanel'
 import { Panel } from './components/Panel'
 import { useDashboardStore } from './store/useDashboardStore'
 
@@ -22,9 +23,7 @@ export default function App() {
       </header>
 
       <main className="grid min-h-0 flex-1 grid-cols-1 gap-2 lg:grid-cols-3 lg:grid-rows-[3fr_2fr]">
-        <Panel title="Map" className="min-h-[360px] lg:col-span-2">
-          <Placeholder label="Map" />
-        </Panel>
+        <MapPanel className="min-h-[360px] lg:col-span-2" />
         <div className="grid min-h-0 grid-rows-2 gap-2">
           <Panel title="Need vs Supply">
             <Placeholder label="Need vs supply" />
