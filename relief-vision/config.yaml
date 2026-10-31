@@ -29,3 +29,18 @@ cameras:
   #   source: "ros2:/camera/image_raw/compressed?odom=/odom"
   #   mode: auto
   #   pose: east-gate              # optional label copied into every event
+  # - id: cam_s1                   # coordinator dashboard camera id
+  #   site_id: shelter_1           # optional: dashboard location (defaults to the top-level site_id)
+  #   source: push                 # iPhone sends frames from the /phone page (needs --serve)
+
+# Coordinator-dashboard API, used with `reliefvision --serve` (see README "Dashboard API").
+# server:
+#   port: 8001
+#   public_url: http://localhost:8001   # base URL browsers use for video links
+#   video: false                        # true = stream annotated frames (same as --serve-video)
+# overlay:                              # what the streamed/dashboard video shows (see README "Heat maps")
+#   heat: recent                        # recent | cumulative (same as --heat); needs video to reach the dashboard
+#   heat_follow: false                  # true = heat pinned to the scene while the camera moves (--follow-camera)
+# pass:                                 # people counted once per pass along a line
+#   min_track_hits: 3                   # raise if one person gets counted twice
+#   gap_s: 5.0                          # a pass ends after this long with nobody in view

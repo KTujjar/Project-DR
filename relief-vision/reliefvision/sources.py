@@ -177,6 +177,23 @@ class Ros2Source(_LiveSource):
             pass
 
 
+class PushSource(_LiveSource):
+    """Frames sent over the network, e.g. by the iPhone /phone page (see server.py).
+
+    Used when the phone can't accept incoming connections (campus Wi-Fi, iOS Local Network
+    rules): the phone pushes JPEGs to us instead. Created by the CLI for `source: push`
+    cameras and handed to both the camera worker and the server.
+    """
+
+    def push_jpeg(self, data: bytes) -> bool:
+        """Decodes and offers a frame. Returns False for data that isn't an image."""
+        fr = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+        if fr is None:
+            return False
+        self._set(fr)
+        return True
+
+
 def open_source(spec: Union[int, str], process_fps: float):
     s = str(spec)
     if s.startswith("ros2:"):

@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Project-DR Phone Camera</title>
+<style>
+  :root { color-scheme: dark; --bg: #0f172a; --panel: #1e293b; --text: #e2e8f0; --muted: #94a3b8; --ok: #16a34a; --bad: #dc2626; --accent: #0284c7; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.4 -apple-system, system-ui, sans-serif; padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); }
+  h1 { font-size: 18px; margin: 0 0 8px; }
+  .row { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+  select, button { font: inherit; border: 0; border-radius: 10px; padding: 12px 14px; color: var(--text); background: var(--panel); }
+  select { flex: 1; }
+  button { flex: 1; font-weight: 600; }
+  button.primary { background: var(--accent); }
+  button.go { background: var(--ok); }
+  button.stop { background: var(--bad); }
+  button:disabled { opacity: .4; }
+  video { width: 100%; border-radius: 12px; background: #000; aspect-ratio: 4 / 3; object-fit: cover; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px 0; }
+  .stat { background: var(--panel); border-radius: 10px; padding: 8px; text-align: center; }
+  .stat b { display: block; font-size: 24px; }
+  .stat span { color: var(--muted); font-size: 12px; }
+  #msg { color: var(--muted); font-size: 14px; min-height: 1.4em; }
+  #msg.err { color: #fca5a5; }
+</style>
+</head>
+<body>
+<h1>Project-DR phone camera</h1>
+<div class="row">
+  <select id="camera" aria-label="Camera"></select>
+  <button id="toggle" class="primary">Start camera</button>
+</div>
+<video id="video" playsinline muted autoplay></video>
+<div class="stats">
+  <div class="stat"><b id="sent">0</b><span>frames/s sent</span></div>
+  <div class="stat"><b id="running">–</b><span>this pass</span></div>
+  <div class="stat"><b id="last">–</b><span>last pass</span></div>
+</div>
+<div class="row">
+  <button id="passStart" class="go" disabled>Start pass</button>
+  <button id="passEnd" class="stop" disabled>End pass</button>
+</div>
+<p id="msg"></p>
+
+<script>
+const FPS = 10;
+const MAX_WIDTH = 640;
+const $ = (id) => document.getElementById(id);
+const video = $('video'), canvas = document.createElement('canvas'), ctx = canvas.getContext('2d');
+let stream = null, ws = null, timer = null, sentThisSecond = 0, wakeLock = null;
+
+function say(text, isError = false) { $('msg').textContent = text; $('msg').className = isError ? 'err' : ''; }
+const cameraId = () => $('camera').value;
+
+async function loadCameras() {
+  const ids = await (await fetch('/api/push-cameras')).json();
+  const wanted = new URLSearchParams(location.search).get('camera');
+  $('camera').innerHTML = ids.map((id) => `<option ${id === wanted ? 'selected' : ''}>${id}</option>`).join('');
+  if (!ids.length) say('No push cameras configured. Add one with "source: push" in config.yaml.', true);
+  $('toggle').disabled = !ids.length;
+}
+
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/api/cameras/${encodeURIComponent(cameraId())}/push`);
+  ws.onopen = () => say('Streaming to the laptop.');
+  ws.onclose = (e) => {
+    if (!stream) return;
+    say(e.reason ? `Disconnected: ${e.reason}` : 'Connection lost, retrying…', true);
+    setTimeout(() => stream && connect(), 2000);
+  };
+}
+
+function sendFrame() {
+  // Skip frames while the network is behind, so video stays live instead of lagging.
+  if (!ws || ws.readyState !== WebSocket.OPEN || ws.bufferedAmount > 256 * 1024 || !video.videoWidth) return;
+  const scale = Math.min(1, MAX_WIDTH / video.videoWidth);
+  canvas.width = Math.round(video.videoWidth * scale);
+  canvas.height = Math.round(video.videoHeight * scale);
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  canvas.toBlob((blob) => { if (blob && ws.readyState === WebSocket.OPEN) { ws.send(blob); sentThisSecond++; } }, 'image/jpeg', 0.7);
+}
+
+async function start() {
+  if (!window.isSecureContext) {
+    say('Safari only allows the camera on https. Open this page through the https://…ts.net address from "tailscale serve".', true);
+    return;
+  }
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false,
+    });
+  } catch (err) {
+    say(`Camera unavailable: ${err.message}`, true);
+    return;
+  }
+  video.srcObject = stream;
+  connect();
+  timer = setInterval(sendFrame, 1000 / FPS);
+  try { wakeLock = await navigator.wakeLock?.request('screen'); } catch { /* screen may still sleep */ }
+  $('toggle').textContent = 'Stop camera';
+  $('camera').disabled = true;
+  $('passStart').disabled = $('passEnd').disabled = false;
+}
+
+function stop() {
+  clearInterval(timer);
+  stream?.getTracks().forEach((t) => t.stop());
+  stream = null;
+  ws?.close();
+  wakeLock?.release();
+  video.srcObject = null;
+  $('toggle').textContent = 'Start camera';
+  $('camera').disabled = false;
+  $('passStart').disabled = $('passEnd').disabled = true;
+  say('Stopped.');
+}
+
+async function pass(action) {
+  const res = await fetch(`/api/cameras/${encodeURIComponent(cameraId())}/pass/${action}`, { method: 'POST' });
+  if (!res.ok) return say(`Pass ${action} failed (${res.status})`, true);
+  showStatus(await res.json());
+  say(action === 'start' ? 'Pass started. Walk the line.' : 'Pass ended. Count sent to the dashboard.');
+}
+
+function showStatus(s) {
+  $('running').textContent = s.in_pass ? s.running_count : '–';
+  $('last').textContent = s.last_pass_count ?? '–';
+}
+
+async function pollStatus() {
+  if (!cameraId()) return;
+  try {
+    const res = await fetch(`/api/cameras/${encodeURIComponent(cameraId())}/pass`);
+    if (res.ok) showStatus(await res.json());
+  } catch { /* offline; next poll retries */ }
+}
+
+$('toggle').onclick = () => (stream ? stop() : start());
+$('passStart').onclick = () => pass('start');
+$('passEnd').onclick = () => pass('end');
+document.addEventListener('visibilitychange', async () => {
+  if (stream && document.visibilityState === 'visible') { try { wakeLock = await navigator.wakeLock?.request('screen'); } catch {} }
+});
+setInterval(() => { $('sent').textContent = sentThisSecond; sentThisSecond = 0; }, 1000);
+setInterval(pollStatus, 1000);
+loadCameras().catch(() => say('Cannot reach the CV service.', true));
+</script>
+</body>
+</html>

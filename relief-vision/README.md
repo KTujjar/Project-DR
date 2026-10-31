@@ -2,7 +2,7 @@
 
 Video module for disaster-relief coordination. Turns camera video (file, webcam, phone/RTSP stream, TurtleBot via ROS 2) into **aggregate** crowd statistics and heat maps, and sends the statistics to your platform as small JSON events.
 
-**Privacy by design:** no face recognition, no identities, no stored frames. Only counts, grid statistics and anonymous positions leave the module. Track IDs are used internally to measure movement and are never emitted.
+**Privacy by design:** no face recognition, no identities, no stored frames. Only counts, grid statistics and anonymous positions leave the module. Track IDs are used internally to measure movement and are never emitted. The one exception is opt-in: `--serve-video` streams the annotated video to the coordinator dashboard (see [Dashboard API](#dashboard-api---serve)).
 
 ## Quick start
 
@@ -38,6 +38,10 @@ Press `q` in the video window to quit. The first run downloads `yolo11n.pt` (abo
 | `--max-frames N` | Stop after N processed frames |
 | `--device cpu\|cuda:0\|mps` | Where to run the models |
 | `--config config.yaml` | Use a config file (anything omitted falls back to defaults) |
+| `--serve [PORT]` | Serve the coordinator-dashboard API (default port 8001); see Dashboard API |
+| `--serve-video` | With `--serve`: also stream the annotated video, including any `--heat` / `--grid` layer (contains footage of people) |
+| `--public-url URL` | With `--serve`: base URL browsers use for video links (default `http://localhost:8001`) |
+| `--cors-origin URL` | With `--serve`: browser origin allowed to call the API (repeatable; default the Vite dev server) |
 
 With no heat or grid options, the video shows just green person boxes, a stats panel, and a warning strip at the bottom. Cyan boxes marked "child?" are possible children; orange boxes are mobility aids.
 
@@ -100,6 +104,8 @@ The heat is drawn under the boxes and stats, in the live window and in `--save-v
 - Checked on a simulated pan: after 20 s the estimated camera shift was within about 0.5% of the true value, and the heat stayed on the right spot.
 - Limits: exact for pure rotation or a flat floor, approximate when the camera physically walks around (things at different depths shift differently); drifts slowly over long runs; heat more than about one screen from the starting view is dropped; needs a textured background to track. **Not yet tested on real handheld footage.**
 
+**On the coordinator dashboard.** The dashboard's camera tiles play the same annotated video, so add the heat options to a `--serve-video` run: `reliefvision --config config.yaml --serve --serve-video --heat` (add `--follow-camera` for a robot or phone that moves along a line). Without `--serve-video` no frames, and so no heat layer, reach the dashboard; the per-camera metrics panel still shows the crowd grid.
+
 ### Offline heat maps and top-down floor map
 
 Same idea as [kerberos-io/heatmap](https://github.com/kerberos-io/heatmap): detect people, convert positions with a homography onto a flat top-down plane, accumulate over a recording, and draw it on an image of the space. Needs a **fixed camera** and a video file.
@@ -139,6 +145,44 @@ reliefvision --source clip.mov --webhook http://localhost:8000/events
 ```
 
 If the network drops, events queue in a local SQLite outbox (`outbox.sqlite`, max 5000) and are delivered oldest-first when it returns. A JSONL copy is always written to `events.jsonl`.
+
+## Dashboard API (`--serve`)
+
+`--serve` adds a small HTTP API for the Project-DR coordinator dashboard, next to the normal events (which keep working as before). Without `--serve`, nothing extra runs.
+
+```bash
+pip install -e ".[server]"
+reliefvision --config config.yaml --serve                          # counts, camera status and metrics on :8001
+reliefvision --config config.yaml --serve --serve-video --heat     # ... plus live annotated video with the heat layer
+```
+
+Give each camera the dashboard's ids: `id: cam_s3` and `site_id: shelter_3` (per-camera `site_id` overrides the top-level one). Point the dashboard at it with `VITE_CV_API_URL=http://localhost:8001`. Clicking a camera tile in the dashboard opens its video next to its full metrics (the latest `Event` from `/api/cameras/{id}/stats`).
+
+**Counting people in a line.** The dashboard count is the number of unique people seen in one *pass*: a TurtleBot (or someone with a phone) moves along the line, every tracked person is counted once even after they leave the frame, and when the pass ends its total replaces the previous one (so it can go down). Passes are controlled by the robot or operator:
+
+```bash
+curl -X POST http://<laptop>:8001/api/cameras/cam_s3/pass/start   # at one end of the line
+curl -X POST http://<laptop>:8001/api/cameras/cam_s3/pass/end     # at the other end
+```
+
+A pass also ends after `pass.gap_s` (5 s) with nobody in view, and a camera that never calls `start` begins passes on its own when people appear. A person must be tracked in `pass.min_track_hits` (3) frames to count. If the tracker loses someone (for example behind another person) it can give them a new ID and count them twice; raise `min_track_hits` and keep the camera steady and side-on to reduce this.
+
+| Method | Path | Returns |
+|---|---|---|
+| GET | `/health` | `{ok, cameras_online}` |
+| GET | `/api/cameras` | `CameraFeed[]` (video links only with `--serve-video`) |
+| GET | `/api/people-counts?since=<ISO 8601>` | `PeopleCount[]` (latest per camera without `since`) |
+| POST | `/api/cameras/{id}/pass/start`, `/pass/end` | start / finish a pass; returns pass status |
+| GET | `/api/cameras/{id}/pass` | `{in_pass, running_count, last_pass_count, ...}` |
+| GET | `/api/cameras/{id}/stats` | that camera's latest `Event` (all the metrics above; `null` until the first one) |
+| GET | `/phone` | iPhone camera page (see below) |
+| GET | `/api/cameras/{id}/snapshot.jpg`, `/stream.mjpg` | annotated video, **only with `--serve-video`** |
+
+`PeopleCount` and `CameraFeed` (`reliefvision/dashboard.py`) are the dashboard's shared contracts; `tests/test_contract.py` pins their fields.
+
+**iPhone camera without an app (`source: push`).** When the phone can't accept incoming connections (campus Wi-Fi, iOS Local Network rules), it sends video to the laptop instead. Add a camera with `source: push`, run with `--serve`, and open `https://<laptop>.<tailnet>.ts.net/phone` in Safari on the phone. Safari only allows the camera over https; with [Tailscale](https://tailscale.com) on both devices, enable HTTPS certificates in the admin console and run `tailscale serve --bg 8001` on the laptop. The page streams about 10 frames/s and has Start pass / End pass buttons.
+
+**Privacy.** Without `--serve-video`, only counts, camera status and the aggregate `Event` metrics leave the module, as with events. With it, annotated frames (boxes, overlay, heat) are streamed to whoever can reach the port; frames are still never stored.
 
 ## Tuning (per camera!)
 
@@ -202,5 +246,7 @@ calib*.json
 ```
 reliefvision/   sources.py (file/webcam/RTSP/ROS 2) · detector.py · camera_motion.py · metrics.py
                 overlay.py · events.py · pipeline.py · schema.py · config.py · cli.py · heatmap.py
+                dashboard API (--serve): passcount.py · dashboard.py · server.py · static/phone.html
 selftest.py · mock_receiver.py · config.yaml · pyproject.toml · requirements.txt
+tests/ (pytest: pip install -e ".[server,dev]")
 ```
