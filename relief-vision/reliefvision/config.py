@@ -45,6 +45,19 @@ DEFAULTS: Dict[str, Any] = {
         "free_cell_threshold": 0.15,
     },
     "events": {"jsonl": "events.jsonl", "webhook": None, "outbox_db": "outbox.sqlite"},
+    # Dashboard API (reliefvision --serve). Off by default: nothing is served unless asked.
+    "server": {
+        "enabled": False,
+        "host": "0.0.0.0",
+        "port": 8001,
+        "public_url": "http://localhost:8001",   # base URL browsers use for snapshot/stream links
+        "cors_origins": ["http://localhost:5173", "http://127.0.0.1:5173"],
+        "video": False,            # True (--serve-video) = annotated frames leave the module
+    },
+    # Unique-people-per-pass counting for the dashboard (robot / phone sweeping a line).
+    "pass": {"min_track_hits": 3, "gap_s": 5.0},
+    # Cameras may also set `site_id` (dashboard location; defaults to the top-level site_id)
+    # and `source: push` (frames sent by the /phone page, needs --serve).
     "cameras": [{"id": "cam1", "source": 0, "mode": "auto"}],
 }
 

@@ -38,10 +38,14 @@ def build_tracker(fps: float, conf: float):
 
 class CameraWorker(threading.Thread):
     def __init__(self, cam: Dict[str, Any], cfg: Dict[str, Any], person_det, aid_det: Optional[AidDetector],
-                 sink: EventSink, save_dir: Optional[str] = None, max_frames: Optional[int] = None):
+                 sink: EventSink, save_dir: Optional[str] = None, max_frames: Optional[int] = None,
+                 source=None, observer=None):
         super().__init__(daemon=True, name=f"cam-{cam['id']}")
         self.cam, self.cfg, self.person_det, self.aid_det, self.sink = cam, cfg, person_det, aid_det, sink
         self.save_dir, self.max_frames = save_dir, max_frames
+        # Optional extras for the dashboard API (--serve): a ready-made source (e.g. a PushSource fed
+        # by the phone page) and an observer told about every analysed frame (dashboard.DashboardBridge).
+        self.source, self.observer = source, observer
         self.latest = None
         self.error: Optional[str] = None
         self.done = False
@@ -55,7 +59,7 @@ class CameraWorker(threading.Thread):
         writer = None
         src = None
         try:
-            src = open_source(cam["source"], fps)
+            src = self.source or open_source(cam["source"], fps)
             tracker = build_tracker(fps, cfg["person"]["conf"])
             motion = CameraMotionEstimator(**cfg["camera_motion"])
             analyzer = SceneAnalyzer(cfg)
@@ -82,7 +86,7 @@ class CameraWorker(threading.Thread):
 
                 if last_emit is None or ts - last_emit >= cfg["emit_interval_s"] or ts < last_emit:
                     last_emit = ts
-                    ev = Event(site_id=cfg["site_id"], camera_id=cam["id"], ts=time.time(),
+                    ev = Event(site_id=cam.get("site_id", cfg["site_id"]), camera_id=cam["id"], ts=time.time(),
                                video_ts=round(ts, 2), pose=cam.get("pose"), **res["event"])
                     self.last_event = ev
                     self.sink.emit(ev)
@@ -102,6 +106,8 @@ class CameraWorker(threading.Thread):
                         live_heat.reset()
                 self.latest = overlay.draw(base, dets, res["event"], res["child_ids"], aid_dets,
                                            show_grid=cfg["overlay"]["grid"])
+                if self.observer is not None:
+                    self.observer.on_frame(self.latest, dets, ts)
                 if self.save_dir:
                     if writer is None:
                         os.makedirs(self.save_dir, exist_ok=True)

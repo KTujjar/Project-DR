@@ -18,10 +18,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-server = ["fastapi", "uvicorn"]
+server = ["fastapi", "uvicorn", "websockets"]   # websockets: iPhone /phone page
+dev = ["pytest", "httpx"]
 
 [project.scripts]
 reliefvision = "reliefvision.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["reliefvision*"]
+
+[tool.setuptools.package-data]
+reliefvision = ["static/*.html"]
