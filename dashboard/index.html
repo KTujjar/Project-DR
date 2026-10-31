@@ -1,18 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Project-DR Dashboard</title>
-    <script>
-      // Dark by default; a saved choice from the theme toggle wins. Runs before paint to avoid a flash.
-      try {
-        if (localStorage.getItem('theme') !== 'light') document.documentElement.classList.add('dark')
-      } catch {
-        document.documentElement.classList.add('dark')
-      }
-    </script>
   </head>
   <body>
     <div id="root"></div>

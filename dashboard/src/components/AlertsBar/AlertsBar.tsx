@@ -23,31 +23,6 @@ function useNow(intervalMs = 1000) {
   return now
 }
 
-function ThemeToggle() {
-  const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'))
-  const toggle = () => {
-    const next = !dark
-    document.documentElement.classList.toggle('dark', next)
-    try {
-      localStorage.setItem('theme', next ? 'dark' : 'light')
-    } catch {
-      // Storage unavailable: the choice just won't persist.
-    }
-    setDark(next)
-  }
-  return (
-    <button
-      type="button"
-      onClick={toggle}
-      title={dark ? 'Switch to light theme' : 'Switch to dark theme'}
-      aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
-      className="rounded px-1.5 py-0.5 text-sm text-slate-300 hover:bg-slate-700"
-    >
-      {dark ? '☀' : '☾'}
-    </button>
-  )
-}
-
 export function AlertsBar() {
   const priorities = useDashboardStore((s) => s.derived?.priorities ?? NO_ISSUES)
   const snapshot = useDashboardStore((s) => s.snapshot)
@@ -123,7 +98,6 @@ export function AlertsBar() {
             </span>
           )}
           <time className="font-mono text-sm tabular-nums">{new Date(now).toLocaleTimeString()}</time>
-          <ThemeToggle />
         </div>
       </div>
     </header>
