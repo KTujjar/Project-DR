@@ -13,6 +13,11 @@ function pickSource(): { source: DataSource; triggerDemoEvent?: () => void } {
   }
   if (kind !== 'mock') console.warn(`Unknown VITE_DATA_SOURCE "${kind}", using mock`)
   const mock = createMockSource()
+  // When the separate community inbox is enabled, its messages are the source
+  // for text alerts. Do not show old simulated SMS alerts beside an empty inbox.
+  if ((import.meta.env.VITE_TEXT_SOURCE ?? 'relay') === 'relay') {
+    return { source: { ...mock, getSnapshot: async () => ({ ...await mock.getSnapshot(), messages: [] }) }, triggerDemoEvent: mock.triggerDemoEvent }
+  }
   return { source: mock, triggerDemoEvent: mock.triggerDemoEvent }
 }
 

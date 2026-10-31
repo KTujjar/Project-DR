@@ -4,6 +4,7 @@ import { useDashboardStore } from '../../store/useDashboardStore'
 import type { TextMessage } from '../../types/schemas'
 import { ITEM_LABEL, timeAgo } from '../labels'
 import { Panel } from '../Panel'
+import { RelayTextFeed } from './RelayTextFeed'
 
 const NO_MESSAGES: TextMessage[] = []
 
@@ -52,6 +53,10 @@ function ParsedFields({ m, siteName }: { m: TextMessage; siteName: (id: string) 
 }
 
 export function TextFeed() {
+  return (import.meta.env.VITE_TEXT_SOURCE ?? 'relay') === 'relay' ? <RelayTextFeed /> : <SnapshotTextFeed />
+}
+
+function SnapshotTextFeed() {
   const messages = useDashboardStore((s) => s.snapshot?.messages ?? NO_MESSAGES)
   const locations = useDashboardStore((s) => s.snapshot?.locations)
   const selectedSiteId = useDashboardStore((s) => s.selectedSiteId)
