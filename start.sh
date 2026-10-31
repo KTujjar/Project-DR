@@ -103,8 +103,19 @@ cd "$ROOT/relay-text-feature"
 pids+=($!)
 names+=("Text service")
 
+# The camera chatbot (in reliefvision) uses the same Anthropic key as the text service.
+# It's read from relay-text-feature/.env (never printed) unless ANTHROPIC_API_KEY is already set.
+CHAT_KEY="${ANTHROPIC_API_KEY:-}"
+if [[ -z "$CHAT_KEY" && -f "$ROOT/relay-text-feature/.env" ]]; then
+  CHAT_KEY="$(sed -n 's/^[[:space:]]*ANTHROPIC_API_KEY[[:space:]]*=[[:space:]]*//p' "$ROOT/relay-text-feature/.env" \
+    | tail -n 1 | tr -d "\"'\r")"
+fi
+if [[ -z "$CHAT_KEY" ]]; then
+  echo "Camera chat: off (no ANTHROPIC_API_KEY in relay-text-feature/.env)."
+fi
+
 cd "$ROOT/relief-vision"
-"$VISION_BIN" --config "$CONFIG" --no-display &
+ANTHROPIC_API_KEY="$CHAT_KEY" "$VISION_BIN" --config "$CONFIG" --no-display &
 pids+=($!)
 names+=("Computer vision")
 
