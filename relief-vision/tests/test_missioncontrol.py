@@ -255,3 +255,45 @@ def test_camera_worker_with_robot_source_feeds_dashboard_and_robot(fake):
     assert state.online_count() == 1
     assert wait_for(lambda: len(fake.results) >= 1)                    # boxes shown to the robot operator
     assert all(len(r["detections"]) == 2 and r["model_id"] == "reliefvision-people" for r in fake.results)
+
+
+# --------------------------------------------------------------------- token lifecycle on the robot Mac
+def test_waits_for_token_file_created_by_robot_launcher(fake, tmp_path, caplog):
+    caplog.set_level(logging.WARNING)
+    token_file = tmp_path / ".robot" / "runtime" / "service.token"      # doesn't exist yet
+    src = MissionControlSource("turtlebot:" + fake.url, 10, token_file=str(token_file), poll_fps=20)
+    try:
+        fake.push_frame(image())
+        assert wait_for(lambda: "waiting for the robot's token file" in caplog.text)
+        assert src._alive and src._last_id is None
+        token_file.parent.mkdir(parents=True)
+        token_file.write_text(TOKEN)                                      # ./scripts/start.sh ran
+        assert wait_for(lambda: src._last_id == "session-1", timeout=6)
+        assert TOKEN not in caplog.text
+    finally:
+        src.close()
+
+
+def test_rereads_token_after_401(fake, tmp_path):
+    token_file = tmp_path / "service.token"
+    token_file.write_text(TOKEN)
+    src = MissionControlSource("turtlebot:" + fake.url, 10, token_file=str(token_file), poll_fps=20)
+    try:
+        fake.push_frame(image())
+        assert wait_for(lambda: src._last_id == "session-1")
+        fake.token = "rotated-token"                                      # launcher regenerated it
+        token_file.write_text("rotated-token")
+        fake.push_frame(image())
+        assert wait_for(lambda: src._last_id == "session-2", timeout=10)
+    finally:
+        src.close()
+
+
+def test_token_path_expands_env_and_home(monkeypatch, tmp_path):
+    from reliefvision.missioncontrol import token_path
+
+    monkeypatch.setenv("RESCUE_BOT_DIR", str(tmp_path))
+    assert token_path("$RESCUE_BOT_DIR/.robot/runtime/service.token") == tmp_path / ".robot/runtime/service.token"
+    assert str(token_path("~/x.token")).startswith(str(tmp_path.home()))
+    with pytest.raises(FileNotFoundError):
+        read_token(str(tmp_path / "missing.token"))

@@ -54,6 +54,11 @@ class FakeMissionControl:
                 return True
 
             def do_GET(self):
+                if self.path == "/__fake/results":  # FAKE-ONLY (not in Mission Control): what was posted
+                    with fake.lock:
+                        last = fake.results[-1] if fake.results else None
+                        body = {"received": len(fake.results), "last": last}
+                    return self._send(200, json.dumps(body).encode())
                 if not self._authorized():
                     return
                 with fake.lock:

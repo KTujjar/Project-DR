@@ -53,14 +53,24 @@ def is_turtlebot_spec(spec: Any) -> bool:
     return str(spec).startswith(SPEC_PREFIX)
 
 
-def read_token(token_file: Optional[str]) -> str:
-    """Token from the camera's token_file, else $TURTBOT_MODEL_TOKEN_FILE."""
+def token_path(token_file: Optional[str]) -> Path:
+    """Where the token lives: the camera's token_file, else $TURTBOT_MODEL_TOKEN_FILE.
+
+    Usually <rescue-bot checkout>/.robot/runtime/service.token, created by its ./scripts/start.sh.
+    """
     path = token_file or os.environ.get(TOKEN_ENV)
     if not path:
-        raise ValueError(f"turtlebot camera needs token_file (or ${TOKEN_ENV}) pointing at Mission Control's service.token")
-    token = Path(path).expanduser().read_text().strip()
+        raise ValueError(f"turtlebot camera needs token_file (or ${TOKEN_ENV}) pointing at Mission Control's "
+                         "service.token, usually <rescue-bot folder>/.robot/runtime/service.token")
+    return Path(os.path.expandvars(str(path))).expanduser()
+
+
+def read_token(token_file: Optional[str]) -> str:
+    """The token itself. Raises FileNotFoundError until the robot launcher has created it."""
+    path = token_path(token_file)
+    token = path.read_text().strip()
     if not token:
-        raise ValueError(f"token file {path} is empty")
+        raise FileNotFoundError(f"token file {path} is empty")
     return token
 
 
@@ -83,10 +93,19 @@ def pose_moved(prev: Optional[Dict[str, float]], cur: Optional[Dict[str, float]]
 class _Api:
     """Tiny authenticated JSON/bytes client (stdlib only, like rescue-bot's example client)."""
 
-    def __init__(self, base_url: str, token: str, timeout: float = 3.0):
+    def __init__(self, base_url: str, token: Optional[str] = None, timeout: float = 3.0):
         self.base = base_url.rstrip("/")
-        self._headers = {"Authorization": "Bearer " + token}
+        self._headers: Dict[str, str] = {}
         self.timeout = timeout
+        if token is not None:
+            self.set_token(token)
+
+    def set_token(self, token: str) -> None:
+        self._headers = {"Authorization": "Bearer " + token}
+
+    @property
+    def has_token(self) -> bool:
+        return bool(self._headers)
 
     def get(self, path: str) -> Tuple[bytes, str]:
         req = urllib.request.Request(self.base + path, headers=self._headers)
@@ -107,7 +126,10 @@ class MissionControlSource(_LiveSource):
                  poll_fps: float = 5.0, token: Optional[str] = None, autostart: bool = True):
         super().__init__(process_fps)
         self.base_url = spec[len(SPEC_PREFIX):] if is_turtlebot_spec(spec) else spec
-        self.api = _Api(self.base_url, token if token is not None else read_token(token_file))
+        # The token file may not exist yet (reliefvision started before the robot's ./scripts/start.sh),
+        # so it's read lazily, and re-read after a 401 in case the launcher regenerated it.
+        self._token_path = None if token is not None else token_path(token_file)
+        self.api = _Api(self.base_url, token)
         self.poll_period = 1.0 / max(poll_fps, 0.1)
         self._frame_lock = threading.Lock()
         # Identity of each decoded image, keyed by id(image), so we know exactly which robot frame
@@ -150,9 +172,15 @@ class MissionControlSource(_LiveSource):
                 backoff = 1.0
                 self._warned.discard("unreachable")
                 time.sleep(self.poll_period)
+            except FileNotFoundError:                    # token not created yet: robot not started
+                self._warn_once("token", f"waiting for the robot's token file {self._token_path} "
+                                         "(start the robot with ./scripts/start.sh in its rescue-bot folder)")
+                time.sleep(2.0)
             except urllib.error.HTTPError as e:
                 if e.code == 401:
-                    self._warn_once("401", "Mission Control rejected the token (401); check token_file")
+                    self._warn_once("401", "Mission Control rejected the token (401); re-reading token_file")
+                    if self._token_path is not None:
+                        self.api = _Api(self.base_url, None, self.api.timeout)   # reload on next poll
                     time.sleep(5.0)
                 elif e.code == 410:
                     time.sleep(self.poll_period)       # frame expired between input and fetch: re-poll
@@ -167,6 +195,10 @@ class MissionControlSource(_LiveSource):
 
     def poll_once(self) -> bool:
         """One input poll; fetches and offers the frame if it's new. Returns True if a frame was set."""
+        if not self.api.has_token:
+            self.api.set_token(read_token(str(self._token_path)))   # FileNotFoundError until the robot starts
+            self._warned.discard("token")
+            self._warned.discard("401")
         body, _ = self.api.get("/api/v1/perception/input")
         sample = json.loads(body)
         pose = (sample.get("pose") or {}).get("data")
