@@ -1,5 +1,6 @@
 import type { DataSource } from '../../types/schemas'
 import { createApiSource } from './apiSource'
+import { withCvOverlay } from './cvOverlay'
 import { createMockSource } from './mockSource'
 
 // VITE_DATA_SOURCE=mock|api picks the source; nothing else in the app changes.
@@ -16,7 +17,9 @@ function pickSource(): { source: DataSource; triggerDemoEvent?: () => void } {
 }
 
 const picked = pickSource()
+// VITE_CV_API_URL (optional) overlays live camera feeds and people counts from the CV service.
+const cvUrl = import.meta.env.VITE_CV_API_URL
 
-export const dataSource: DataSource = picked.source
+export const dataSource: DataSource = cvUrl ? withCvOverlay(picked.source, cvUrl) : picked.source
 // Only the mock can stage the demo event; undefined for real APIs.
 export const triggerDemoEvent = picked.triggerDemoEvent
