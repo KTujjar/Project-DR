@@ -109,3 +109,60 @@ def test_stats_null_before_first_event_and_404_for_unknown():
     res = c.get("/api/cameras/cam_s3/stats")
     assert res.status_code == 200 and res.json() is None
     assert c.get("/api/cameras/cam_s4/stats").status_code == 404
+
+
+# ---------------------------------------------------------------- camera chat endpoints
+def chat_client(client, with_chat=True):
+    from test_chat import JPEG
+    from test_history import ev
+
+    from reliefvision.chat import CameraChat
+    from reliefvision.history import CameraHistory
+
+    clock = Clock(1_793_430_000.0)
+    h = CameraHistory(clock=clock)
+    h.record_event(ev(clock.t - 30, camera="cam_s3"))
+    h.set_frame("cam_s3", JPEG, ts=clock.t)
+    h.add_note("cam_s3", "Two people at the desk.", ts=clock.t - 10)
+    chat = CameraChat(h, client, clock=clock) if with_chat else None
+    return TestClient(create_app(DashboardState(CAMS), {}, chat=chat, history=h))
+
+
+def test_chat_endpoint_answers():
+    from test_chat import FakeClient
+
+    c = chat_client(FakeClient("Two people at the desk, calm."))
+    res = c.post("/api/cameras/cam_s3/chat", json={"messages": [{"role": "user", "content": "What's happening?"}],
+                                                   "site_name": "Lebanon Middle School"})
+    assert res.status_code == 200
+    assert res.json() == {"reply": "Two people at the desk, calm.", "used": {"image": True, "minutes": 30, "scene_notes": 1}}
+
+
+def test_chat_endpoint_errors():
+    from test_chat import FakeClient
+
+    c = chat_client(FakeClient())
+    q = {"messages": [{"role": "user", "content": "hi"}]}
+    assert c.post("/api/cameras/nope/chat", json=q).status_code == 404
+    assert c.post("/api/cameras/cam_s3/chat", json={"messages": []}).status_code == 422
+    no_key = chat_client(None).post("/api/cameras/cam_s3/chat", json=q)
+    assert no_key.status_code == 503 and "API key" in no_key.json()["detail"]
+    assert chat_client(None, with_chat=False).post("/api/cameras/cam_s3/chat", json=q).status_code == 503
+
+
+def test_scene_log_endpoint():
+    from test_chat import FakeClient
+
+    body = chat_client(FakeClient()).get("/api/cameras/cam_s3/scene-log").json()
+    assert body["enabled"] is True and body["notes"][0]["text"] == "Two people at the desk."
+    assert body["notes"][0]["time"].endswith("Z")
+    assert chat_client(None).get("/api/cameras/cam_s3/scene-log").json()["enabled"] is False
+
+
+def test_cors_allows_json_post_from_dashboard():
+    from test_chat import FakeClient
+
+    res = chat_client(FakeClient()).options("/api/cameras/cam_s3/chat", headers={
+        "Origin": "http://localhost:5173", "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "content-type"})
+    assert res.status_code == 200 and "content-type" in res.headers["access-control-allow-headers"].lower()

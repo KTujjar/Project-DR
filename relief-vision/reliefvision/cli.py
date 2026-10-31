@@ -18,6 +18,7 @@ import cv2
 
 from .config import load_config
 from .events import EventSink
+from .history import RecordingSink
 from .observers import ObserverGroup
 from .pipeline import CameraWorker, build_detectors
 
@@ -37,19 +38,47 @@ def authorize_webcams(cameras) -> None:
 
 
 def prepare_dashboard(cfg):
-    """Dashboard pieces (--serve) the camera workers need: state, per-camera bridges, phone push sources."""
+    """Dashboard pieces (--serve) the camera workers need: state, per-camera bridges, phone push
+    sources, and the rolling history the camera chatbot reads."""
     from .dashboard import DashboardBridge, DashboardState
+    from .history import CameraHistory
     from .sources import PushSource
 
     cams = cfg["cameras"]
     site = lambda c: c.get("site_id", cfg["site_id"])  # noqa: E731
+    window_s = float(cfg["chat"]["history_minutes"]) * 60
+    history = CameraHistory(window_s=window_s)
     state = DashboardState([(c["id"], site(c)) for c in cams], public_url=cfg["server"]["public_url"],
-                           video=cfg["server"]["video"])
+                           video=cfg["server"]["video"], history_s=max(600.0, window_s))
     bridges = {c["id"]: DashboardBridge(c["id"], site(c), state, conf=cfg["person"]["conf"],
-                                        min_track_hits=cfg["pass"]["min_track_hits"], pass_gap_s=cfg["pass"]["gap_s"])
+                                        min_track_hits=cfg["pass"]["min_track_hits"], pass_gap_s=cfg["pass"]["gap_s"],
+                                        history=history)
                for c in cams}
     push_sources = {c["id"]: PushSource(cfg["process_fps"]) for c in cams if str(c["source"]) == "push"}
-    return state, bridges, push_sources
+    return state, bridges, push_sources, history
+
+
+def start_chat(cfg, history):
+    """Camera chatbot + scene log (needs ANTHROPIC_API_KEY). Returns the CameraChat, or None if disabled."""
+    from .chat import CameraChat, SceneLogger, make_client
+
+    c = cfg["chat"]
+    if not c["enabled"]:
+        return None
+    client = make_client()
+    chat = CameraChat(history, client, model=c["model"], include_image=c["include_image"],
+                      minutes=int(c["history_minutes"]))
+    if client is None:
+        print("[reliefvision] camera chat: no ANTHROPIC_API_KEY, so the chat and scene log are off "
+              "(put the key in relay-text-feature/.env and use ./start.sh)")
+        return chat
+    if c["scene_log"]["enabled"]:
+        SceneLogger(history, client, model=c["model"], interval_s=float(c["scene_log"]["interval_s"]),
+                    min_gap_s=float(c["scene_log"]["min_gap_s"])).start()
+    print(f"[reliefvision] camera chat on ({c['model']}"
+          + (", scene log every ~%ss" % c["scene_log"]["interval_s"] if c["scene_log"]["enabled"] else "")
+          + "): camera frames are sent to Anthropic for questions and scene notes")
+    return chat
 
 
 def prepare_turtlebots(cfg):
@@ -71,13 +100,15 @@ def prepare_turtlebots(cfg):
     return sources, reporters
 
 
-def serve_dashboard(cfg, state, bridges, push_sources, workers) -> None:
+def serve_dashboard(cfg, state, bridges, push_sources, workers, history=None) -> None:
     """Starts the dashboard API in a background thread once the workers exist."""
     from .server import create_app, run_in_thread
 
     srv = cfg["server"]
     crowd_events = {w.cam["id"]: (lambda w=w: w.last_event) for w in workers}
-    run_in_thread(create_app(state, bridges, push_sources, srv["cors_origins"], crowd_events), srv["host"], srv["port"])
+    chat = start_chat(cfg, history) if history is not None else None
+    run_in_thread(create_app(state, bridges, push_sources, srv["cors_origins"], crowd_events, chat, history),
+                  srv["host"], srv["port"])
     print(f"[reliefvision] dashboard API on http://{srv['host']}:{srv['port']}"
           + (" (with video)" if srv["video"] else " (counts only; --serve-video to stream frames)")
           + (f". Phone page: {srv['public_url']}/phone" if push_sources else ""))
@@ -156,7 +187,9 @@ def main(argv=None) -> int:
     authorize_webcams(cfg["cameras"])
     person, aid = build_detectors(cfg)
     sink = EventSink(cfg["events"]["jsonl"], cfg["events"]["webhook"], cfg["events"]["outbox_db"])
-    state, bridges, push_sources = prepare_dashboard(cfg) if srv["enabled"] else (None, {}, {})
+    state, bridges, push_sources, history = prepare_dashboard(cfg) if srv["enabled"] else (None, {}, {}, None)
+    if history is not None:
+        sink = RecordingSink(sink, history)   # the camera chatbot sees every Event too
     robot_sources, reporters = prepare_turtlebots(cfg)
 
     def observer_for(cam_id):
@@ -168,7 +201,7 @@ def main(argv=None) -> int:
                             observer=observer_for(c["id"]))
                for c in cfg["cameras"]]
     if srv["enabled"]:
-        serve_dashboard(cfg, state, bridges, push_sources, workers)
+        serve_dashboard(cfg, state, bridges, push_sources, workers, history)
     for w in workers:
         w.start()
     print(f"[reliefvision] {len(workers)} camera(s) running. Events -> {cfg['events']['jsonl']}"

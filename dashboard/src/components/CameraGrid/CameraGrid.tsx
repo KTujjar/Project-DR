@@ -3,6 +3,7 @@ import { useDashboardStore } from '../../store/useDashboardStore'
 import type { CameraFeed, PeopleCount } from '../../types/schemas'
 import { timeAgo } from '../labels'
 import { Panel } from '../Panel'
+import { CameraChat } from './CameraChat'
 import { CameraStats } from './CameraStats'
 
 // Set when the CV service is connected (see cvOverlay.ts); enables per-camera crowd metrics.
@@ -107,6 +108,14 @@ export function CameraGrid() {
                   siteName={siteName(enlargedCam.site_id)}
                   large
                 />
+                {cvUrl && (
+                  <CameraChat
+                    key={enlargedCam.camera_id}
+                    cameraId={enlargedCam.camera_id}
+                    cvUrl={cvUrl}
+                    siteName={siteName(enlargedCam.site_id)}
+                  />
+                )}
               </div>
               {cvUrl && <CameraStats key={enlargedCam.camera_id} cameraId={enlargedCam.camera_id} cvUrl={cvUrl} />}
             </div>

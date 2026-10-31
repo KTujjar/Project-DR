@@ -2,7 +2,7 @@
 
 Video module for disaster-relief coordination. Turns camera video (file, webcam, phone/RTSP stream, TurtleBot via ROS 2) into **aggregate** crowd statistics and heat maps, and sends the statistics to your platform as small JSON events.
 
-**Privacy by design:** no face recognition, no identities, no stored frames. Only counts, grid statistics and anonymous positions leave the module. Track IDs are used internally to measure movement and are never emitted. The one exception is opt-in: `--serve-video` streams the annotated video to the coordinator dashboard (see [Dashboard API](#dashboard-api---serve)).
+**Privacy by design:** no face recognition, no identities, no stored frames. Only counts, grid statistics and anonymous positions leave the module. Track IDs are used internally to measure movement and are never emitted. The exceptions are opt-in: `--serve-video` streams the annotated video to the coordinator dashboard (see [Dashboard API](#dashboard-api---serve)), and the camera chatbot sends frames to Anthropic when an API key is set (see [Camera chatbot](#camera-chatbot-and-scene-log)).
 
 ## Quick start
 
@@ -203,6 +203,8 @@ A pass also ends after `pass.gap_s` (5 s) with nobody in view, and a camera that
 | POST | `/api/cameras/{id}/pass/start`, `/pass/end` | start / finish a pass; returns pass status |
 | GET | `/api/cameras/{id}/pass` | `{in_pass, running_count, last_pass_count, ...}` |
 | GET | `/api/cameras/{id}/stats` | that camera's latest `Event` (all the metrics above; `null` until the first one) |
+| POST | `/api/cameras/{id}/chat` | ask the camera chatbot: `{messages: [{role, content}], site_name?}` → `{reply, used}` (see below) |
+| GET | `/api/cameras/{id}/scene-log` | AI-written notes about the last 30 min, newest first |
 | GET | `/phone` | iPhone camera page (see below) |
 | GET | `/api/cameras/{id}/snapshot.jpg`, `/stream.mjpg` | annotated video, **only with `--serve-video`** |
 
@@ -210,7 +212,17 @@ A pass also ends after `pass.gap_s` (5 s) with nobody in view, and a camera that
 
 **iPhone camera without an app (`source: push`).** When the phone can't accept incoming connections (campus Wi-Fi, iOS Local Network rules), it sends video to the laptop instead. Add a camera with `source: push`, run with `--serve`, and open `https://<laptop>.<tailnet>.ts.net/phone` in Safari on the phone. Safari only allows the camera over https; with [Tailscale](https://tailscale.com) on both devices, enable HTTPS certificates in the admin console and run `tailscale serve --bg 8001` on the laptop. The page streams about 10 frames/s and has Start pass / End pass buttons.
 
-**Privacy.** Without `--serve-video`, only counts, camera status and the aggregate `Event` metrics leave the module, as with events. With it, annotated frames (boxes, overlay, heat) are streamed to whoever can reach the port; frames are still never stored.
+**Privacy.** Without `--serve-video`, only counts, camera status and the aggregate `Event` metrics leave the module, as with events. With it, annotated frames (boxes, overlay, heat) are streamed to whoever can reach the port; frames are still never stored. The camera chatbot (below) sends frames to Anthropic's API when it's enabled with a key.
+
+### Camera chatbot and scene log
+
+With `--serve` and `ANTHROPIC_API_KEY` set (`./start.sh` passes the key from `relay-text-feature/.env`), the dashboard's enlarged camera view can ask questions about a camera (`reliefvision/chat.py`):
+
+- **Answers** come from Claude (`chat.model`, default `claude-haiku-5-5`, effort `low`) using the camera's last `chat.history_minutes` (30) of `Event`s condensed to one line per minute, finished passes, the scene log, and the current annotated frame (`chat.include_image`). The conversation's last 10 turns are sent. One question at a time per camera.
+- **Scene log:** a background thread writes a 1-2 sentence note per online camera every `scene_log.interval_s` (30 s), or sooner (not within `min_gap_s`, 10 s) when the count changes by 3 or more or a new warning appears. The chatbot uses these to answer questions about earlier moments.
+- **What leaves the machine:** the frame and metrics summary, to Anthropic, for each question and each scene note. History lives in memory only (`reliefvision/history.py`) and is gone on restart. Prompts tell the model never to identify people or describe identifying traits.
+- **Errors:** no key gives a 503 with how to add one. A rejected key, rate limit or network problem gets a short message in the chat. A refusal is reported, not hidden.
+- **Turn it off:** `chat: {enabled: false}` in the config, or `chat: {scene_log: {enabled: false}}` to keep questions but stop background notes. The SDK (`anthropic`, in the `server` extra) needs Python 3.10+.
 
 ## Tuning (per camera!)
 
@@ -276,6 +288,7 @@ reliefvision/   sources.py (file/webcam/RTSP/ROS 2) · detector.py · camera_mot
                 overlay.py · events.py · pipeline.py · schema.py · config.py · cli.py · heatmap.py
                 dashboard API (--serve): passcount.py · dashboard.py · server.py · static/phone.html
                 TurtleBot camera: missioncontrol.py · observers.py (tests/fake_mission_control.py for demos)
+                camera chatbot + scene log: chat.py · history.py
 selftest.py · mock_receiver.py · config.yaml · pyproject.toml · requirements.txt
 tests/ (pytest: pip install -e ".[server,dev]")
 ```

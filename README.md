@@ -43,6 +43,14 @@ export RESCUE_BOT_DIR="/path/to/rescue-bot-folder"
 
 If `TURTBOT_MODEL_TOKEN_FILE` is already set, `./start.sh` also enables the three-camera config using that token path. Without either robot setting, it runs the laptop and phone cameras and prints instructions for enabling the robot.
 
+## Camera chatbot
+
+Click a camera tile: under the video, **Ask about this camera** answers questions such as "What's happening now?", "What happened in the last 10 minutes?" or "Does anyone need help?". It uses Claude Haiku 5.5 with the current camera image, the last 30 minutes of crowd metrics and passes, and a **scene log**: every ~30 seconds (sooner when something changes) the AI writes a short note about what the camera shows, so you can ask about earlier moments. The notes are listed under **Recent observations**.
+
+It uses the same key as the text service: put `ANTHROPIC_API_KEY=...` in `relay-text-feature/.env` (git-ignored, never commit it) and run `./start.sh`, which hands the key to the vision service. Without a key, the chat says how to turn it on and no scene notes are made.
+
+**Privacy and cost:** camera frames are sent to Anthropic's API for each question and each scene note (about 2 per minute per online camera; well under a cent per camera-hour with Haiku). Nothing is stored on disk. The AI is told never to identify people. To turn it off, set `chat: {enabled: false}` (or `scene_log: {enabled: false}`) in the camera config; see `relief-vision/README.md`.
+
 ## Show the TurtleBot camera on the dashboard
 
 Do this on **the Mac connected to the robot** (by Ethernet).
