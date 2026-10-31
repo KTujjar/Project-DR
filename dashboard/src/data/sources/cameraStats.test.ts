@@ -44,12 +44,12 @@ describe('fetchCameraStats', () => {
 describe('startPass / endPass', () => {
   it('POSTs to the pass endpoints and returns the new status', async () => {
     const f = vi.fn(async () => new Response(JSON.stringify({ ...PASS, in_pass: true }), { status: 200 }))
-    expect((await startPass('http://cv:8001/', 'cam_robot', f)).in_pass).toBe(true)
-    await endPass('http://cv:8001', 'cam_robot', f)
+    expect((await startPass('http://cv:8001/', 'cam_shannon', f)).in_pass).toBe(true)
+    await endPass('http://cv:8001', 'cam_shannon', f)
     const calls = f.mock.calls as unknown as [string, RequestInit][]
     expect(calls.map(([url, init]) => `${init.method} ${url}`)).toEqual([
-      'POST http://cv:8001/api/cameras/cam_robot/pass/start',
-      'POST http://cv:8001/api/cameras/cam_robot/pass/end',
+      'POST http://cv:8001/api/cameras/cam_shannon/pass/start',
+      'POST http://cv:8001/api/cameras/cam_shannon/pass/end',
     ])
   })
 
@@ -59,6 +59,6 @@ describe('startPass / endPass', () => {
     const down = vi.fn(async () => {
       throw new TypeError('Failed to fetch')
     })
-    await expect(endPass('http://cv', 'cam_robot', down)).rejects.toThrow('Failed to fetch')
+    await expect(endPass('http://cv', 'cam_shannon', down)).rejects.toThrow('Failed to fetch')
   })
 })

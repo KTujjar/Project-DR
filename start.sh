@@ -36,7 +36,7 @@ elif [[ -n "${TURTBOT_MODEL_TOKEN_FILE:-}" ]]; then
   CONFIG=config.robot.yaml
 fi
 if [[ "$CONFIG" == config.robot.yaml ]]; then
-  echo "Cameras: cam_robot, cam_laptop, cam_phone"
+  echo "Cameras: cam_shannon, cam_laptop, cam_phone"
   if [[ ! -f "$TURTBOT_MODEL_TOKEN_FILE" ]]; then
     echo "Note: robot token not available yet. Start Mission Control in the rescue-bot folder."
     echo "The robot camera will wait for its token and connection."

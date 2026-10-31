@@ -32,7 +32,7 @@ cameras:
   # - id: cam_s1                   # coordinator dashboard camera id
   #   site_id: shelter_1           # optional: dashboard location (defaults to the top-level site_id)
   #   source: push                 # iPhone sends frames from the /phone page (needs --serve)
-  # - id: cam_robot                # TurtleBot3 camera via rescue-bot Mission Control (README "TurtleBot3 camera")
+  # - id: cam_shannon                # TurtleBot3 camera via rescue-bot Mission Control (README "TurtleBot3 camera")
   #   site_id: shelter_3
   #   source: "turtlebot:http://127.0.0.1:8872"
   #   token_file: /path/to/rescue-bot/.robot/runtime/service.token   # never commit the token

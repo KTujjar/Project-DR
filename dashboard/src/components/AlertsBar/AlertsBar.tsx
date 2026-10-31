@@ -52,7 +52,7 @@ export function AlertsBar() {
       )}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="whitespace-nowrap">
-          <span className="font-semibold">Project-DR</span> <span className="text-slate-400">Coordinator</span>
+          <span className="font-semibold">RESQ</span> <span className="text-slate-400">Coordinator</span>
         </div>
 
         <ol className="flex min-w-0 flex-1 flex-wrap gap-2 overflow-hidden lg:flex-nowrap">

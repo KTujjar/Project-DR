@@ -1,4 +1,4 @@
-# Project-DR
+# RESQ
 
 Disaster-relief coordination: a coordinator dashboard fed by camera people-counting and community texts.
 
@@ -32,7 +32,7 @@ To include the robot camera, start Mission Control in its separate checkout, the
 ./start.sh /path/to/rescue-bot-folder
 ```
 
-This uses the same `config.robot.yaml` as the robot launcher, showing **cam_robot, cam_laptop, and cam_phone**. You do not need to run both launchers. `start-with-robot.sh` now forwards to `start.sh`, including the text service and Tailscale shutdown handling.
+This uses the same `config.robot.yaml` as the robot launcher, showing **cam_shannon, cam_laptop, and cam_phone**. You do not need to run both launchers. `start-with-robot.sh` now forwards to `start.sh`, including the text service and Tailscale shutdown handling.
 
 For subsequent runs with just `./start.sh`, set the folder in your terminal (or your shell profile):
 
@@ -70,7 +70,7 @@ Do this on **the Mac connected to the robot** (by Ethernet).
 
    | Tile | Camera | Counts shelter |
    |---|---|---|
-   | `cam_robot` | TurtleBot3 camera | Lebanon Middle School (`shelter_3`) |
+   | `cam_shannon` | TurtleBot3 camera | Lebanon Middle School (`shelter_3`) |
    | `cam_laptop` | This Mac's built-in camera | Hanover High School (`shelter_1`) |
    | `cam_phone` | iPhone, through the `/phone` page (see below) | Leverone Field House (`shelter_2`) |
 
@@ -82,7 +82,7 @@ The order doesn't matter: if the robot isn't started yet, its tile stays offline
 
 ## Run without the robot
 
-The same dashboard with the laptop and phone cameras (`cam_robot` is left out):
+The same dashboard with the laptop and phone cameras (`cam_shannon` is left out):
 
 ```bash
 cd relay-text-feature && python -m uvicorn backend.main:app --port 8000   # community texts

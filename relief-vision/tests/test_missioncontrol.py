@@ -233,10 +233,10 @@ def test_camera_worker_with_robot_source_feeds_dashboard_and_robot(fake):
 
     cfg = load_config()
     cfg["aids"]["enabled"] = False
-    cam = {"id": "cam_robot", "source": "turtlebot:" + fake.url, "site_id": "shelter_3", "mode": "auto"}
+    cam = {"id": "cam_shannon", "source": "turtlebot:" + fake.url, "site_id": "shelter_3", "mode": "auto"}
     src = MissionControlSource(cam["source"], 10, token=TOKEN, poll_fps=20)
-    state = DashboardState([("cam_robot", "shelter_3")])
-    bridge = DashboardBridge("cam_robot", "shelter_3", state, min_track_hits=1)
+    state = DashboardState([("cam_shannon", "shelter_3")])
+    bridge = DashboardBridge("cam_shannon", "shelter_3", state, min_track_hits=1)
     reporter = MissionControlReporter(src)
     sink = Sink()
     worker = CameraWorker(cam, cfg, TwoPeople(), None, sink, max_frames=6,

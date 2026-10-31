@@ -17,7 +17,7 @@ server:                 # coordinator-dashboard API on http://localhost:8001
   video: true           # stream the annotated video to the dashboard tiles
 
 cameras:
-  - id: cam_robot
+  - id: cam_shannon
     site_id: shelter_3  # Lebanon Middle School
     source: "turtlebot:http://127.0.0.1:8872"
     # Token: $TURTBOT_MODEL_TOKEN_FILE (set by start-with-robot.sh to

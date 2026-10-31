@@ -91,7 +91,7 @@ The Project-DR TurtleBot3 Burger (`rescue-bot` branch) doesn't publish its camer
 
 ```yaml
 cameras:
-  - id: cam_robot
+  - id: cam_shannon
     site_id: shelter_3                                   # which dashboard site the robot is counting
     source: "turtlebot:http://127.0.0.1:8872"
     token_file: /path/to/rescue-bot/.robot/runtime/service.token
