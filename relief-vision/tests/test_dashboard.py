@@ -132,3 +132,11 @@ def test_bridge_stores_frames_only_with_video():
     run(bridge, clock, [dets(1)])
     seq, jpeg = state.latest_frame("cam_s3")
     assert seq == 1 and jpeg.startswith(b"\xff\xd8")
+
+
+def test_bridge_ignores_unconfirmed_tracks():
+    # ByteTrack reports -1 for people it hasn't confirmed yet; many newcomers' first frames
+    # must not add up to a phantom "person -1".
+    _, bridge, clock = make_bridge()
+    run(bridge, clock, [dets(-1, -1)] * 5 + [dets(7)] * 3)
+    assert bridge.pass_status()["running_count"] == 1
