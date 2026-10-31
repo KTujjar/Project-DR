@@ -1,0 +1,71 @@
+import { describe, expect, it } from 'vitest'
+import { createMockSource } from './mockSource'
+
+const qty = (snap: Awaited<ReturnType<ReturnType<typeof createMockSource>['getSnapshot']>>, site: string, item: string) =>
+  snap.inventory.find((r) => r.site_id === site && r.item === item)?.quantity
+
+describe('mock scenario', () => {
+  it('matches the seeded scenario shape', async () => {
+    const snap = await createMockSource().getSnapshot()
+    expect(snap.locations.filter((l) => l.kind === 'shelter')).toHaveLength(4)
+    expect(snap.locations.filter((l) => l.kind === 'depot')).toHaveLength(2)
+    expect(snap.locations.filter((l) => l.kind === 'incident')).toHaveLength(1)
+    expect(snap.cameras).toHaveLength(4)
+    expect(snap.cameras.filter((c) => !c.online)).toHaveLength(1)
+    expect(snap.messages).toHaveLength(15)
+    expect(snap.messages.some((m) => m.needs_review && m.parsed?.urgency === 'critical')).toBe(true)
+    expect(snap.messages.some((m) => m.needs_review && !m.parsed)).toBe(true)
+    expect(snap.dispatches.map((d) => d.status).sort()).toEqual(['delivered', 'en_route', 'pending'])
+  })
+
+  it('returns copies so callers cannot mutate source state', async () => {
+    const src = createMockSource()
+    const a = await src.getSnapshot()
+    a.locations.length = 0
+    const b = await src.getSnapshot()
+    expect(b.locations.length).toBe(7)
+  })
+})
+
+describe('mock dispatch lifecycle', () => {
+  it('moves a created dispatch pending -> en_route -> delivered and lands the stock', async () => {
+    const src = createMockSource()
+    const before = await src.getSnapshot()
+    const waterBefore = qty(before, 'shelter_3', 'water_L')!
+    const depotBefore = qty(before, 'depot_b', 'water_L')!
+
+    await src.createDispatch({
+      dispatch_id: 'sugg_test', from_site: 'depot_b', to_site: 'shelter_3', items: { water_L: 400 },
+      status: 'suggested', eta_minutes: 2, created_at: '', updated_at: '',
+    })
+
+    const statuses: string[] = []
+    let snap = before
+    for (let i = 0; i < 6; i++) {
+      snap = await src.getSnapshot()
+      statuses.push(snap.dispatches.find((d) => d.dispatch_id === 'sugg_test')!.status)
+    }
+    expect(statuses[0]).toBe('pending')
+    expect(statuses).toContain('en_route')
+    expect(statuses.at(-1)).toBe('delivered')
+    expect(qty(snap, 'shelter_3', 'water_L')).toBe(waterBefore + 400)
+    expect(qty(snap, 'depot_b', 'water_L')).toBe(depotBefore - 400)
+    expect(snap.messages.at(-1)!.direction).toBe('out')
+  })
+
+  it('cancels pending dispatches but not delivered ones', async () => {
+    const src = createMockSource()
+    await src.cancelDispatch('dsp_003')
+    await src.cancelDispatch('dsp_001')
+    const snap = await src.getSnapshot()
+    expect(snap.dispatches.find((d) => d.dispatch_id === 'dsp_003')!.status).toBe('cancelled')
+    expect(snap.dispatches.find((d) => d.dispatch_id === 'dsp_001')!.status).toBe('delivered')
+  })
+
+  it('sendText appends an outgoing message', async () => {
+    const src = createMockSource()
+    await src.sendText('603-555-0123', 'Water on the way')
+    const snap = await src.getSnapshot()
+    expect(snap.messages.at(-1)).toMatchObject({ direction: 'out', body: 'Water on the way' })
+  })
+})
