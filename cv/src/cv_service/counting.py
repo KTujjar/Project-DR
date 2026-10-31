@@ -1,36 +1,80 @@
-"""Pure counting logic: person detection scores in, people_count and confidence out."""
+"""Pure counting logic for a camera that sweeps along a line of people.
 
-from collections import deque
-from statistics import median_low
+A robot (TurtleBot3) or a handheld phone moves from one end of the line to the other.
+Every tracked person seen during that pass is counted once, even after they leave the
+frame. When the pass ends, its total becomes the published count until the next pass ends.
+"""
+
+from dataclasses import dataclass, field
 from typing import Sequence
 
-
-def count_people(scores: Sequence[float], conf: float) -> int:
-    """Person detections at or above the confidence threshold."""
-    return sum(1 for s in scores if s >= conf)
+# (track_id, score) per detection; track_id is None until the tracker confirms a person.
+Observation = tuple[int | None, float]
 
 
-def count_confidence(scores: Sequence[float], conf: float) -> float:
-    """How sure we are of the count, 0..1.
-
-    Mean score of the counted people. With nobody counted, it is 1 minus the strongest
-    near-miss, so an empty frame with no borderline detections reads as confident.
-    """
-    counted = [s for s in scores if s >= conf]
-    if counted:
-        return round(sum(counted) / len(counted), 3)
-    near_miss = max(scores, default=0.0)
-    return round(1.0 - near_miss, 3)
+@dataclass
+class _Track:
+    hits: int = 0
+    best: float = 0.0
 
 
-class Smoother:
-    """Median of the last `window` counts, to stop single-frame flicker."""
+@dataclass
+class PassCounter:
+    conf: float = 0.4  # minimum score for a detection to count toward a track
+    min_hits: int = 3  # a track must be seen this often to count (filters tracker flicker)
+    gap_s: float = 5.0  # a pass ends after this long with nobody in view
 
-    def __init__(self, window: int = 5):
-        if window < 1:
-            raise ValueError("window must be >= 1")
-        self._values: deque[int] = deque(maxlen=window)
+    in_pass: bool = False
+    # True once the robot/app has called start(); after that, passes only start on request.
+    managed: bool = False
+    passes_completed: int = 0
+    last_total: int | None = None
+    last_confidence: float | None = None
+    _tracks: dict[int, _Track] = field(default_factory=dict)
+    _last_person_at: float = 0.0
 
-    def push(self, value: int) -> int:
-        self._values.append(value)
-        return median_low(self._values)
+    def start(self, now: float, managed: bool = True) -> None:
+        """Begins a new pass, discarding any pass in progress."""
+        self.managed = self.managed or managed
+        self.in_pass = True
+        self._tracks = {}
+        self._last_person_at = now
+
+    def end(self) -> int | None:
+        """Finishes the pass and publishes its total. No-op when no pass is running."""
+        if self.in_pass:
+            self.last_total = self.running()
+            self.last_confidence = self._confidence()
+            self.passes_completed += 1
+            self.in_pass = False
+        return self.last_total
+
+    def observe(self, detections: Sequence[Observation], now: float) -> None:
+        people = [(tid, s) for tid, s in detections if tid is not None and s >= self.conf]
+        if people and not self.in_pass and not self.managed:
+            self.start(now, managed=False)
+        if not self.in_pass:
+            return
+        if people:
+            self._last_person_at = now
+            for tid, score in people:
+                track = self._tracks.setdefault(tid, _Track())
+                track.hits += 1
+                track.best = max(track.best, score)
+        elif now - self._last_person_at >= self.gap_s:
+            self.end()
+
+    def running(self) -> int:
+        """Unique people counted so far in the current pass."""
+        return sum(1 for t in self._tracks.values() if t.hits >= self.min_hits)
+
+    def published(self) -> tuple[int, float]:
+        """(people_count, confidence) to report: the last finished pass, or the running count before the first one."""
+        if self.last_total is not None and self.last_confidence is not None:
+            return self.last_total, self.last_confidence
+        return self.running(), self._confidence()
+
+    def _confidence(self) -> float:
+        """Mean best score of the counted people; 1.0 when nobody was counted."""
+        best = [t.best for t in self._tracks.values() if t.hits >= self.min_hits]
+        return round(sum(best) / len(best), 3) if best else 1.0

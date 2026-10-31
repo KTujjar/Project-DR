@@ -25,12 +25,12 @@ def env():
     clock = Clock(1_793_400_000.0)
     settings = Settings(cameras=CAMS, public_url="http://cv:8001")
     store = Store(CAMS, clock=clock)
-    worker = CameraWorker(CAMS[0], store, FakeDetector([0.9, 0.8], [0.9, 0.8, 0.7]), clock=clock)
+    worker = CameraWorker(CAMS[0], store, FakeDetector([(1, 0.9), (2, 0.7)]), clock=clock, min_track_hits=1)
     frame = np.zeros((120, 160, 3), dtype=np.uint8)
     worker.process_frame(frame)
     clock.t += 1
     worker.process_frame(frame)
-    return TestClient(create_app(store, settings)), clock
+    return TestClient(create_app(store, settings, {"cam_s3": worker})), clock
 
 
 def test_health(env):
@@ -59,7 +59,7 @@ def test_people_counts_latest_and_since(env):
     assert latest == [
         {"site_id": "shelter_3", "camera_id": "cam_s3", "timestamp": "2026-10-30T22:40:01.000Z",
          "people_count": 2, "confidence": 0.8}
-    ]  # smoothed: median_low of [2, 3]
+    ]  # running count of the auto-started pass
     since = client.get("/api/people-counts", params={"since": iso_from_epoch(1_793_400_000.5)}).json()
     assert [c["timestamp"] for c in since] == ["2026-10-30T22:40:01.000Z"]
     assert len(client.get("/api/people-counts", params={"since": "1970-01-01T00:00:00.000Z"}).json()) == 2
@@ -84,3 +84,21 @@ def test_cors_allows_vite_dev_server(env):
 def test_stream_unknown_camera(env):
     client, _ = env
     assert client.get("/api/cameras/nope/stream.mjpg").status_code == 404
+
+
+def test_pass_start_end_and_status(env):
+    client, _ = env
+    res = client.post("/api/cameras/cam_s3/pass/start")
+    assert res.status_code == 200
+    assert res.json() == {"camera_id": "cam_s3", "in_pass": True, "managed": True, "running_count": 0,
+                          "last_pass_count": None, "passes_completed": 0}
+    ended = client.post("/api/cameras/cam_s3/pass/end").json()
+    assert ended["in_pass"] is False and ended["last_pass_count"] == 0 and ended["passes_completed"] == 1
+    assert client.get("/api/cameras/cam_s3/pass").json() == ended
+    assert client.get("/api/people-counts").json()[0]["people_count"] == 0
+
+
+def test_pass_unknown_camera(env):
+    client, _ = env
+    assert client.post("/api/cameras/cam_s4/pass/start").status_code == 404
+    assert client.get("/api/cameras/nope/pass").status_code == 404

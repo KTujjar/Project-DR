@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from .api import create_app
 from .camera_worker import CameraWorker, authorize_webcams
 from .config import load_settings
-from .detector import YoloPersonDetector
+from .detector import YoloPersonTracker
 from .state import Store
 
 log = logging.getLogger("cv_service")
@@ -22,16 +22,23 @@ def main() -> None:
     settings = load_settings()
 
     authorize_webcams(settings.cameras)
-    detector = YoloPersonDetector(settings.model, settings.device)
-    log.info("YOLO %s on %s, %d camera(s)", settings.model, detector.device, len(settings.cameras))
-
     store = Store(settings.cameras, history_s=settings.history_s)
     workers = [
-        CameraWorker(cam, store, detector, conf=settings.conf, infer_every_s=settings.infer_every_s)
+        CameraWorker(
+            cam,
+            store,
+            # One tracker per camera: track IDs are per video stream.
+            YoloPersonTracker(settings.model, settings.device),
+            conf=settings.conf,
+            infer_every_s=settings.infer_every_s,
+            min_track_hits=settings.min_track_hits,
+            pass_gap_s=settings.pass_gap_s,
+        )
         for cam in settings.cameras
     ]
+    log.info("YOLO %s tracking %d camera(s)", settings.model, len(workers))
 
-    app = create_app(store, settings)
+    app = create_app(store, settings, {w.cfg.camera_id: w for w in workers})
 
     @asynccontextmanager
     async def lifespan(_app):

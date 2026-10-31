@@ -28,7 +28,9 @@ class Settings:
     model: str = "yolov8n.pt"
     device: str = "mps"
     conf: float = 0.4
-    infer_every_s: float = 1.0
+    infer_every_s: float = 0.1  # tracking needs several frames per second
+    min_track_hits: int = 3
+    pass_gap_s: float = 5.0
     offline_after_s: float = 10.0
     history_s: float = 600.0
 
@@ -85,5 +87,7 @@ def load_settings(env: Mapping[str, str] = os.environ) -> Settings:
         device=env.get("CV_DEVICE", defaults.device),
         conf=float(env.get("CV_CONF", defaults.conf)),
         infer_every_s=float(env.get("CV_INFER_EVERY_S", defaults.infer_every_s)),
+        min_track_hits=int(env.get("CV_MIN_TRACK_HITS", defaults.min_track_hits)),
+        pass_gap_s=float(env.get("CV_PASS_GAP_S", defaults.pass_gap_s)),
         offline_after_s=float(env.get("CV_OFFLINE_AFTER_S", defaults.offline_after_s)),
     )

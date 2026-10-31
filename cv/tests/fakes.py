@@ -6,16 +6,23 @@ from cv_service.detector import Detection
 
 
 class FakeDetector:
-    """Returns scripted detection scores, one list per call (the last list repeats)."""
+    """Returns scripted tracked people, one list per call (the last list repeats).
 
-    def __init__(self, *score_lists: list[float]):
-        self._script = list(score_lists) or [[]]
+    Each entry is a track id (scored 0.9) or a (track_id, score) pair.
+    """
+
+    def __init__(self, *frames: list[int | tuple[int | None, float]]):
+        self._script = list(frames) or [[]]
         self.calls = 0
 
     def detect(self, frame: np.ndarray) -> list[Detection]:
-        scores = self._script[min(self.calls, len(self._script) - 1)]
+        people = self._script[min(self.calls, len(self._script) - 1)]
         self.calls += 1
-        return [Detection(box=(10 + 20 * i, 10, 30 + 20 * i, 60), score=s) for i, s in enumerate(scores)]
+        out = []
+        for i, p in enumerate(people):
+            tid, score = p if isinstance(p, tuple) else (p, 0.9)
+            out.append(Detection(box=(10 + 20 * i, 10, 30 + 20 * i, 60), score=score, track_id=tid))
+        return out
 
 
 class FakeSource:

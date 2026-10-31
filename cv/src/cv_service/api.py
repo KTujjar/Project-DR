@@ -1,6 +1,6 @@
 """HTTP API the dashboard (or the team backend) polls."""
 
-from typing import Iterator
+from typing import Iterator, Mapping, Protocol
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,9 +13,23 @@ from .timeutil import parse_iso
 BOUNDARY = "frame"
 
 
-def create_app(store: Store, settings: Settings) -> FastAPI:
+class PassControl(Protocol):
+    """Start/end a pass along the line (implemented by CameraWorker)."""
+
+    def start_pass(self) -> dict: ...
+    def end_pass(self) -> dict: ...
+    def pass_status(self) -> dict: ...
+
+
+def create_app(store: Store, settings: Settings, passes: Mapping[str, PassControl] | None = None) -> FastAPI:
+    passes = passes or {}
     app = FastAPI(title="Project-DR CV service")
-    app.add_middleware(CORSMiddleware, allow_origins=list(settings.cors_origins), allow_methods=["GET"])
+    app.add_middleware(CORSMiddleware, allow_origins=list(settings.cors_origins), allow_methods=["GET", "POST"])
+
+    def require_pass_control(camera_id: str) -> PassControl:
+        if camera_id not in passes:
+            raise HTTPException(404, f"unknown camera {camera_id}")
+        return passes[camera_id]
 
     def require_camera(camera_id: str) -> None:
         if not store.has_camera(camera_id):
@@ -38,6 +52,19 @@ def create_app(store: Store, settings: Settings) -> FastAPI:
         except ValueError:
             raise HTTPException(422, "since must be an ISO 8601 timestamp")
         return JSONResponse([c.model_dump() for c in store.people_counts(since_s)])
+
+    # The robot (or phone operator) calls start at one end of the line and end at the other.
+    @app.post("/api/cameras/{camera_id}/pass/start")
+    def start_pass(camera_id: str) -> dict:
+        return require_pass_control(camera_id).start_pass()
+
+    @app.post("/api/cameras/{camera_id}/pass/end")
+    def end_pass(camera_id: str) -> dict:
+        return require_pass_control(camera_id).end_pass()
+
+    @app.get("/api/cameras/{camera_id}/pass")
+    def pass_status(camera_id: str) -> dict:
+        return require_pass_control(camera_id).pass_status()
 
     @app.get("/api/cameras/{camera_id}/snapshot.jpg")
     def snapshot(camera_id: str) -> Response:
