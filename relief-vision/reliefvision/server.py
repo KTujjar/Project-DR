@@ -6,6 +6,8 @@
     POST /api/cameras/{id}/pass/start|end   start / finish a pass along the line
     GET  /api/cameras/{id}/pass             pass status
     GET  /api/cameras/{id}/stats            latest crowd-metrics Event (null until the first one)
+    POST /api/cameras/{id}/chat             ask the camera chatbot {messages, site_name?} -> {reply, used}
+    GET  /api/cameras/{id}/scene-log        AI-written notes about the last 30 min, newest first
     GET  /phone                             iPhone camera page (Safari, needs https)
     WS   /api/cameras/{id}/push             the phone page sends JPEG frames here
     GET  /api/cameras/{id}/snapshot.jpg     only with --serve-video
@@ -17,11 +19,13 @@ import threading
 from importlib.resources import files
 from typing import Callable, Iterator, Mapping, Optional, Sequence
 
-from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import Body, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 
-from .dashboard import DashboardBridge, DashboardState, parse_iso
+from .chat import CameraChat, ChatError, ChatUnavailable
+from .dashboard import DashboardBridge, DashboardState, iso_from_epoch, parse_iso
+from .history import CameraHistory
 from .schema import Event
 from .sources import PushSource
 
@@ -31,13 +35,17 @@ BOUNDARY = "frame"
 def create_app(state: DashboardState, bridges: Mapping[str, DashboardBridge],
                push_sources: Optional[Mapping[str, PushSource]] = None,
                cors_origins: Sequence[str] = ("http://localhost:5173", "http://127.0.0.1:5173"),
-               crowd_events: Optional[Mapping[str, Callable[[], Optional[Event]]]] = None) -> FastAPI:
-    """`crowd_events` maps camera id -> a getter for that camera's latest Event (CameraWorker.last_event)."""
+               crowd_events: Optional[Mapping[str, Callable[[], Optional[Event]]]] = None,
+               chat: Optional[CameraChat] = None, history: Optional[CameraHistory] = None) -> FastAPI:
+    """`crowd_events` maps camera id -> a getter for that camera's latest Event (CameraWorker.last_event).
+    `chat` / `history` enable the camera chatbot and scene log (chat.py, history.py)."""
     push_sources = push_sources or {}
     crowd_events = crowd_events or {}
     phone_page = files("reliefvision").joinpath("static/phone.html").read_text()
     app = FastAPI(title="reliefvision dashboard API")
-    app.add_middleware(CORSMiddleware, allow_origins=list(cors_origins), allow_methods=["GET", "POST"])
+    # Content-Type is needed for the chatbot's JSON POST (a non-simple CORS request).
+    app.add_middleware(CORSMiddleware, allow_origins=list(cors_origins), allow_methods=["GET", "POST"],
+                       allow_headers=["Content-Type"])
 
     def bridge(camera_id: str) -> DashboardBridge:
         if camera_id not in bridges:
@@ -81,6 +89,29 @@ def create_app(state: DashboardState, bridges: Mapping[str, DashboardBridge],
             raise HTTPException(404, f"no crowd stats for camera {camera_id}")
         ev = crowd_events[camera_id]()
         return JSONResponse(None if ev is None else ev.model_dump(mode="json"))
+
+    # --- camera chatbot and scene log (chat.py) ---
+    @app.post("/api/cameras/{camera_id}/chat")
+    def camera_chat(camera_id: str, body: dict = Body(...)) -> dict:
+        if not state.has_camera(camera_id):
+            raise HTTPException(404, f"unknown camera {camera_id}")
+        if chat is None:
+            raise HTTPException(503, "Camera chat is turned off (chat.enabled in the config).")
+        site = body.get("site_name") if isinstance(body.get("site_name"), str) else None
+        try:
+            return chat.answer(camera_id, body.get("messages"), site=site)
+        except ChatUnavailable as e:
+            raise HTTPException(503, str(e))
+        except ChatError as e:
+            raise HTTPException(e.status, e.message)
+
+    @app.get("/api/cameras/{camera_id}/scene-log")
+    def scene_log(camera_id: str) -> dict:
+        if not state.has_camera(camera_id):
+            raise HTTPException(404, f"unknown camera {camera_id}")
+        notes = history.notes(camera_id) if history is not None else []
+        return {"enabled": bool(chat and chat.available),
+                "notes": [{"time": iso_from_epoch(n.ts), "text": n.text} for n in reversed(notes)]}
 
     # --- phone camera: the page captures frames and sends them here (phone -> laptop) ---
     @app.get("/phone", response_class=HTMLResponse)

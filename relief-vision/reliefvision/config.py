@@ -56,6 +56,15 @@ DEFAULTS: Dict[str, Any] = {
     },
     # Unique-people-per-pass counting for the dashboard (robot / phone sweeping a line).
     "pass": {"min_track_hits": 3, "gap_s": 5.0},
+    # Camera chatbot + scene log in the dashboard (with --serve; needs ANTHROPIC_API_KEY). Sends camera
+    # frames to Anthropic for questions and scene notes. See chat.py.
+    "chat": {
+        "enabled": True,
+        "model": "claude-haiku-5-5",
+        "history_minutes": 30,     # how far back the chatbot can see
+        "include_image": True,     # attach the current frame to each question
+        "scene_log": {"enabled": True, "interval_s": 30, "min_gap_s": 10},
+    },
     # Cameras may also set `site_id` (dashboard location; defaults to the top-level site_id)
     # and `source: push` (frames sent by the /phone page, needs --serve).
     # TurtleBot cameras use `source: turtlebot:<Mission Control URL>` with `token_file` (or

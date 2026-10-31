@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-server = ["fastapi", "uvicorn", "websockets"]   # websockets: iPhone /phone page
+server = ["fastapi", "uvicorn", "websockets", "anthropic"]   # websockets: iPhone /phone page; anthropic: camera chat (Python 3.10+)
 dev = ["pytest", "httpx"]
 
 [project.scripts]
