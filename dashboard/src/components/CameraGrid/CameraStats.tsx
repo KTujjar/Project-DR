@@ -63,13 +63,15 @@ function PassControls({ pass, busy, error, onAction }: PassControlsProps) {
       <PassRows pass={pass} />
       {pass && (
         <div className="mt-2 flex gap-2">
+          {/* Starting discards any pass in progress (including one the camera began on its own),
+              so the operator can always begin a fresh sweep at the start of the line. */}
           <button
             type="button"
-            disabled={busy || pass.in_pass}
+            disabled={busy}
             onClick={() => onAction('start')}
             className="flex-1 rounded bg-green-700 px-2 py-1 text-xs font-semibold text-white disabled:opacity-40"
           >
-            Start pass
+            {pass.in_pass ? 'Restart pass' : 'Start pass'}
           </button>
           <button
             type="button"
