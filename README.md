@@ -32,6 +32,17 @@ To include the robot camera, start Mission Control in its separate checkout, the
 ./start.sh /path/to/rescue-bot-folder
 ```
 
+This uses the same `config.robot.yaml` as the robot launcher, showing **cam_robot, cam_laptop, and cam_phone**. You do not need to run both launchers. `start-with-robot.sh` now forwards to `start.sh`, including the text service and Tailscale shutdown handling.
+
+For subsequent runs with just `./start.sh`, set the folder in your terminal (or your shell profile):
+
+```bash
+export RESCUE_BOT_DIR="/path/to/rescue-bot-folder"
+./start.sh
+```
+
+If `TURTBOT_MODEL_TOKEN_FILE` is already set, `./start.sh` also enables the three-camera config using that token path. Without either robot setting, it runs the laptop and phone cameras and prints instructions for enabling the robot.
+
 ## Show the TurtleBot camera on the dashboard
 
 Do this on **the Mac connected to the robot** (by Ethernet).
@@ -46,7 +57,7 @@ Do this on **the Mac connected to the robot** (by Ethernet).
    ```bash
    ./start-with-robot.sh /path/to/rescue-bot-folder
    ```
-   The first run installs dependencies and downloads a small person-detection model (about 5 MB).
+   Set up the app dependencies first, as for `./start.sh`. The first vision run downloads a small person-detection model (about 5 MB).
 4. Open **http://localhost:5173**. The dashboard shows only the three real cameras. Click a tile for live video, heat map, crowd metrics, and **Start pass** / **End pass** for counting people along a line:
 
    | Tile | Camera | Counts shelter |

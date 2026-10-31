@@ -6,6 +6,7 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 if [[ "${1:-}" == "--help" || "$#" -gt 1 ]]; then
   echo "Usage: $0 [path/to/rescue-bot-folder]"
   echo "Starts texts (:8000), vision (:8001), dashboard (:5173), and Tailscale Serve."
+  echo "Pass the rescue-bot folder (or set RESCUE_BOT_DIR) for robot + laptop + phone cameras."
   echo "Press Ctrl+C to stop everything. The robot's Mission Control is started separately."
   exit 0
 fi
@@ -31,6 +32,18 @@ if [[ -n "$ROBOT_DIR" ]]; then
   fi
   export TURTBOT_MODEL_TOKEN_FILE="$ROBOT_DIR/.robot/runtime/service.token"
   CONFIG=config.robot.yaml
+elif [[ -n "${TURTBOT_MODEL_TOKEN_FILE:-}" ]]; then
+  CONFIG=config.robot.yaml
+fi
+if [[ "$CONFIG" == config.robot.yaml ]]; then
+  echo "Cameras: cam_robot, cam_laptop, cam_phone"
+  if [[ ! -f "$TURTBOT_MODEL_TOKEN_FILE" ]]; then
+    echo "Note: robot token not available yet. Start Mission Control in the rescue-bot folder."
+    echo "The robot camera will wait for its token and connection."
+  fi
+else
+  echo "Cameras: cam_laptop, cam_phone"
+  echo "For all three cameras: $0 /path/to/rescue-bot-folder (or set RESCUE_BOT_DIR)."
 fi
 
 # Refuse occupied ports instead of connecting the dashboard to an unrelated app.
