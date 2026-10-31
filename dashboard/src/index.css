@@ -4,3 +4,12 @@
 
 html, body, #root { height: 100%; }
 body { @apply bg-slate-100 text-slate-900; }
+
+/* Chart roles (validated with the dataviz palette script against the panel surfaces). */
+:root {
+  --viz-series-1: #2a78d6;
+  --viz-critical: #d03b3b;
+  --viz-threshold: #0b0b0b;
+  --viz-text-secondary: #52514e;
+  --viz-grid: #e5e7eb;
+}

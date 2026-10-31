@@ -1,15 +1,12 @@
 import { useEffect } from 'react'
 import { AlertsBar } from './components/AlertsBar/AlertsBar'
+import { CameraGrid } from './components/CameraGrid/CameraGrid'
 import { DispatchQueue } from './components/DispatchQueue/DispatchQueue'
+import { InventoryPanel } from './components/InventoryPanel/InventoryPanel'
 import { MapPanel } from './components/MapPanel/MapPanel'
 import { NeedSupplyPanel } from './components/NeedSupplyPanel/NeedSupplyPanel'
-import { Panel } from './components/Panel'
 import { TextFeed } from './components/TextFeed/TextFeed'
 import { useDashboardStore } from './store/useDashboardStore'
-
-function Placeholder({ label }: { label: string }) {
-  return <p className="p-3 text-sm text-slate-400">{label} coming soon</p>
-}
 
 export default function App() {
   const startPolling = useDashboardStore((s) => s.startPolling)
@@ -26,13 +23,9 @@ export default function App() {
           <NeedSupplyPanel />
           <DispatchQueue />
         </div>
-        <Panel title="Inventory">
-          <Placeholder label="Inventory" />
-        </Panel>
+        <InventoryPanel />
         <TextFeed />
-        <Panel title="Cameras">
-          <Placeholder label="Cameras" />
-        </Panel>
+        <CameraGrid />
       </main>
     </div>
   )
