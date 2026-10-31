@@ -58,6 +58,9 @@ DEFAULTS: Dict[str, Any] = {
     "pass": {"min_track_hits": 3, "gap_s": 5.0},
     # Cameras may also set `site_id` (dashboard location; defaults to the top-level site_id)
     # and `source: push` (frames sent by the /phone page, needs --serve).
+    # TurtleBot cameras use `source: turtlebot:<Mission Control URL>` with `token_file` (or
+    # $TURTBOT_MODEL_TOKEN_FILE), optional `poll_fps` (default 5) and `report_detections`
+    # (default true: person boxes are shown on the robot operator's video). See missioncontrol.py.
     "cameras": [{"id": "cam1", "source": 0, "mode": "auto"}],
 }
 

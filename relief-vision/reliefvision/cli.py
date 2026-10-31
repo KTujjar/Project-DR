@@ -18,6 +18,7 @@ import cv2
 
 from .config import load_config
 from .events import EventSink
+from .observers import ObserverGroup
 from .pipeline import CameraWorker, build_detectors
 
 
@@ -49,6 +50,25 @@ def prepare_dashboard(cfg):
                for c in cams}
     push_sources = {c["id"]: PushSource(cfg["process_fps"]) for c in cams if str(c["source"]) == "push"}
     return state, bridges, push_sources
+
+
+def prepare_turtlebots(cfg):
+    """TurtleBot cameras (`source: turtlebot:<url>`): frame sources and, unless disabled, the
+    reporters that show reliefvision's person boxes on the robot operator's video."""
+    from .missioncontrol import MissionControlReporter, MissionControlSource, is_turtlebot_spec
+
+    sources, reporters = {}, {}
+    for c in cfg["cameras"]:
+        if not is_turtlebot_spec(c["source"]):
+            continue
+        src = MissionControlSource(str(c["source"]), cfg["process_fps"], token_file=c.get("token_file"),
+                                   poll_fps=float(c.get("poll_fps", 5.0)))
+        sources[c["id"]] = src
+        if c.get("report_detections", True):
+            reporters[c["id"]] = MissionControlReporter(src)
+        print(f"[reliefvision] {c['id']}: TurtleBot camera via {src.base_url}"
+              + (" (people boxes shown in Mission Control)" if c["id"] in reporters else ""))
+    return sources, reporters
 
 
 def serve_dashboard(cfg, state, bridges, push_sources, workers) -> None:
@@ -137,8 +157,15 @@ def main(argv=None) -> int:
     person, aid = build_detectors(cfg)
     sink = EventSink(cfg["events"]["jsonl"], cfg["events"]["webhook"], cfg["events"]["outbox_db"])
     state, bridges, push_sources = prepare_dashboard(cfg) if srv["enabled"] else (None, {}, {})
+    robot_sources, reporters = prepare_turtlebots(cfg)
+
+    def observer_for(cam_id):
+        found = [o for o in (bridges.get(cam_id), reporters.get(cam_id)) if o is not None]
+        return found[0] if len(found) == 1 else (ObserverGroup(*found) if found else None)
+
     workers = [CameraWorker(c, cfg, person, aid, sink, args.save_video, args.max_frames,
-                            source=push_sources.get(c["id"]), observer=bridges.get(c["id"]))
+                            source=push_sources.get(c["id"]) or robot_sources.get(c["id"]),
+                            observer=observer_for(c["id"]))
                for c in cfg["cameras"]]
     if srv["enabled"]:
         serve_dashboard(cfg, state, bridges, push_sources, workers)
