@@ -29,7 +29,9 @@ export function AlertsBar() {
   const lastFetchAt = useDashboardStore((s) => s.lastFetchAt)
   const connectionLost = useDashboardStore((s) => s.connectionLost)
   const selectSite = useDashboardStore((s) => s.selectSite)
+  const selectedSiteId = useDashboardStore((s) => s.selectedSiteId)
   const now = useNow()
+  const selectedName = snapshot?.locations.find((l) => l.id === selectedSiteId)?.name
 
   const top = priorities.slice(0, TOP_N)
   const more = priorities.length - top.length
@@ -48,7 +50,7 @@ export function AlertsBar() {
           <span className="font-semibold">Project-DR</span> <span className="text-slate-400">Coordinator</span>
         </div>
 
-        <ol className="flex min-w-0 flex-1 flex-wrap gap-2 lg:flex-nowrap">
+        <ol className="flex min-w-0 flex-1 flex-wrap gap-2 overflow-hidden lg:flex-nowrap">
           {top.length === 0 && <li className="text-sm text-green-400">No urgent issues</li>}
           {top.map((issue, i) => (
             <li key={issue.id} className="min-w-0">
@@ -56,7 +58,9 @@ export function AlertsBar() {
                 type="button"
                 onClick={() => issue.site_id && selectSite(issue.site_id)}
                 title={issue.title}
-                className={`block max-w-[19rem] truncate rounded px-2 py-1 text-left text-xs font-medium ${ISSUE_CLASS[issue.severity]}`}
+                className={`block w-full max-w-[19rem] truncate rounded px-2 py-1 text-left text-xs font-medium ${ISSUE_CLASS[issue.severity]} ${
+                  issue.site_id && issue.site_id === selectedSiteId ? 'ring-2 ring-sky-300' : ''
+                }`}
               >
                 {i + 1}. {KIND_ICON[issue.kind]} {issue.title}
               </button>
@@ -64,7 +68,7 @@ export function AlertsBar() {
           ))}
           {more > 0 && (
             <li
-              className="self-center text-xs text-slate-400"
+              className="shrink-0 self-center whitespace-nowrap text-xs text-slate-400"
               title={priorities.slice(TOP_N).map((i) => i.title).join('\n')}
             >
               +{more} more
@@ -73,6 +77,16 @@ export function AlertsBar() {
         </ol>
 
         <div className="flex items-center gap-3 whitespace-nowrap text-xs">
+          {selectedName && (
+            <button
+              type="button"
+              onClick={() => selectSite(null)}
+              title="Clear selection (Esc)"
+              className="rounded bg-sky-600 px-2 py-1 font-medium hover:bg-sky-500"
+            >
+              Selected: {selectedName} ✕
+            </button>
+          )}
           {stale.length > 0 ? (
             <span className="rounded bg-amber-500 px-2 py-1 font-semibold text-slate-900" title="No new data for over 60 s">
               Stale: {stale.map((s) => `${s.source} (${s.ageSeconds}s)`).join(', ')}

@@ -4,7 +4,7 @@ import { createDashboardStore } from './useDashboardStore'
 
 describe('dashboard store', () => {
   it('loads a snapshot and derives values', async () => {
-    const store = createDashboardStore(createMockSource())
+    const store = createDashboardStore(createMockSource({ drift: false }))
     await store.getState().refresh()
     const { snapshot, derived, connectionLost } = store.getState()
     expect(snapshot?.locations).toHaveLength(7)
@@ -13,7 +13,7 @@ describe('dashboard store', () => {
   })
 
   it('keeps the last good data when a fetch fails', async () => {
-    const source = createMockSource()
+    const source = createMockSource({ drift: false })
     const store = createDashboardStore(source)
     await store.getState().refresh()
     const good = store.getState().snapshot
@@ -26,7 +26,7 @@ describe('dashboard store', () => {
   })
 
   it('approving a suggestion creates a pending dispatch and removes the suggestion', async () => {
-    const store = createDashboardStore(createMockSource())
+    const store = createDashboardStore(createMockSource({ drift: false }))
     await store.getState().refresh()
     const sugg = store.getState().derived!.suggestions.find((s) => s.to_site === 'shelter_3')!
 
@@ -39,7 +39,7 @@ describe('dashboard store', () => {
   })
 
   it('dismissed suggestions are remembered while they remain suggested', async () => {
-    const store = createDashboardStore(createMockSource())
+    const store = createDashboardStore(createMockSource({ drift: false }))
     await store.getState().refresh()
     const id = store.getState().derived!.suggestions[0].dispatch_id
     store.getState().dismiss(id)

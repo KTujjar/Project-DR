@@ -23,7 +23,8 @@ export function etaMinutes(km: number, cfg: Config = defaultConfig): number {
 
 // Greedy dispatch suggestions: worst-covered shortfalls first, filled from the nearest
 // depot with surplus above its safety reserve, split across depots when needed.
-// Shortfalls already covered by pending / en-route dispatches are skipped.
+// Shortfalls already covered by pending / en-route dispatches are skipped. Each suggestion
+// adds a buffer (config.suggestionBufferRatio of the need) on top of the shortfall.
 export function suggestDispatches(
   rows: SiteRow[],
   locations: Location[],
@@ -49,14 +50,20 @@ export function suggestDispatches(
 
   const shortfalls = rows
     .flatMap((row) =>
-      ITEM_TYPES.map((item) => ({
-        row,
-        item,
-        coverage: row.items[item].coverage,
-        amount: row.items[item].shortfall - (incoming[row.location.id]?.[item] ?? 0),
-      })),
+      ITEM_TYPES.map((item) => {
+        const { need, shortfall, coverage } = row.items[item]
+        const uncovered = shortfall - (incoming[row.location.id]?.[item] ?? 0)
+        return {
+          row,
+          item,
+          coverage,
+          uncovered,
+          minimum: need * cfg.minSuggestionRatio,
+          amount: uncovered + Math.ceil(need * cfg.suggestionBufferRatio),
+        }
+      }),
     )
-    .filter((s) => s.amount > 0)
+    .filter((s) => s.uncovered > 0 && s.uncovered >= s.minimum)
     .sort((a, b) => a.coverage - b.coverage)
 
   const byRoute = new Map<string, Dispatch>()

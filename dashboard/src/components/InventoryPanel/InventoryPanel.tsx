@@ -13,6 +13,8 @@ interface BarRow {
   updated: string | null
 }
 
+const needTickBeyondBar = (row: BarRow) => row.threshold !== null && row.threshold > row.quantity
+
 // Draws only a vertical tick at the end of the (invisible) threshold bar.
 function ThresholdTick(props: { x?: number; y?: number; width?: number; height?: number; payload?: BarRow }) {
   const { x = 0, y = 0, width = 0, height = 0, payload } = props
@@ -24,7 +26,7 @@ function ThresholdTick(props: { x?: number; y?: number; width?: number; height?:
 function ChartTooltip({ active, payload }: { active?: boolean; payload?: { payload: BarRow }[] }) {
   if (!active || !payload?.length) return null
   const row = payload[0].payload
-  const short = row.threshold !== null && row.quantity < row.threshold
+  const short = needTickBeyondBar(row)
   return (
     <div className="rounded border border-slate-200 bg-white px-2 py-1 text-xs shadow">
       <div className="font-semibold">{row.name}</div>
@@ -100,20 +102,27 @@ export function InventoryPanel() {
                 {data.map((row) => (
                   <Cell
                     key={row.site_id}
-                    fill={row.threshold !== null && row.quantity < row.threshold ? 'var(--viz-critical)' : 'var(--viz-series-1)'}
+                    fill={needTickBeyondBar(row) ? 'var(--viz-critical)' : 'var(--viz-series-1)'}
                     stroke={row.site_id === selectedSiteId ? 'var(--viz-threshold)' : 'none'}
                     strokeWidth={2}
                   />
                 ))}
                 <LabelList
-                  dataKey="quantity"
                   position="right"
                   fontSize={11}
                   fill="var(--viz-text-secondary)"
-                  formatter={(v: number) => v.toLocaleString()}
+                  valueAccessor={(entry: { payload: BarRow }) => (needTickBeyondBar(entry.payload) ? '' : entry.payload.quantity.toLocaleString())}
                 />
               </Bar>
-              <Bar dataKey="threshold" barSize={14} shape={<ThresholdTick />} isAnimationActive={false} />
+              <Bar dataKey="threshold" barSize={14} shape={<ThresholdTick />} isAnimationActive={false}>
+                {/* When the need tick sits past the bar, put the value after the tick so they don't collide. */}
+                <LabelList
+                  position="right"
+                  fontSize={11}
+                  fill="var(--viz-text-secondary)"
+                  valueAccessor={(entry: { payload: BarRow }) => (needTickBeyondBar(entry.payload) ? entry.payload.quantity.toLocaleString() : '')}
+                />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>

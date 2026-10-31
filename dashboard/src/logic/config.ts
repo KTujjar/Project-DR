@@ -17,6 +17,11 @@ export const config = {
 
   // Depots keep this share of their stock back and only dispatch the rest.
   depotReserveRatio: 0.2,
+  // Suggestions send the shortfall plus this share of the 24h need, so a site stays covered
+  // while it keeps consuming instead of dropping back to Low right after delivery.
+  suggestionBufferRatio: 0.2,
+  // Shortfalls below this share of the need are not worth a truck.
+  minSuggestionRatio: 0.02,
   truckSpeedKmh: 40,
 
   staleAfterSeconds: 60,

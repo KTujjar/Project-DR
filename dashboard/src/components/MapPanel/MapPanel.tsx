@@ -1,4 +1,5 @@
-import { Circle, CircleMarker, MapContainer, Polyline, Popup, TileLayer, Tooltip } from 'react-leaflet'
+import { useEffect } from 'react'
+import { Circle, CircleMarker, MapContainer, Polyline, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import { useDashboardStore } from '../../store/useDashboardStore'
 import { ITEM_TYPES, type Location } from '../../types/schemas'
 import { ITEM_LABEL } from '../labels'
@@ -12,6 +13,17 @@ const OFFLINE_COLOR = '#94a3b8'
 const URGENCY_COLOR = { low: '#64748b', medium: '#f59e0b', high: '#ea580c', critical: '#dc2626' }
 
 const pos = (l: Location): [number, number] => [l.lat, l.lng]
+
+// Pans to the selected site whenever the selection changes from any panel.
+function FollowSelection({ target }: { target?: Location }) {
+  const map = useMap()
+  const lat = target?.lat
+  const lng = target?.lng
+  useEffect(() => {
+    if (lat !== undefined && lng !== undefined) map.flyTo([lat, lng], Math.max(map.getZoom(), 13), { duration: 0.6 })
+  }, [map, lat, lng])
+  return null
+}
 
 function Legend() {
   const dot = (color: string, label: string) => (
@@ -53,6 +65,7 @@ export function MapPanel({ className = '' }: { className?: string }) {
   return (
     <Panel title="Map" actions={<Legend />} className={className}>
       <MapContainer center={CENTER} zoom={12} className="h-full min-h-[300px] w-full">
+        <FollowSelection target={selectedSiteId ? byId.get(selectedSiteId) : undefined} />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

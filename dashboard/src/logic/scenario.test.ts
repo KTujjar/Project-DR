@@ -26,7 +26,8 @@ describe('scenario: derived values', () => {
     const s = d.suggestions.find((x) => x.to_site === 'shelter_3')!
     expect(s.from_site).toBe('depot_b')
     expect(s.status).toBe('suggested')
-    expect(s.items.water_L).toBe(row('shelter_3').items.water_L.shortfall)
+    const { shortfall, need } = row('shelter_3').items.water_L
+    expect(s.items.water_L).toBe(shortfall + Math.ceil(need * 0.2))
     expect(s.eta_minutes).toBeGreaterThan(0)
   })
 
@@ -57,5 +58,14 @@ describe('suggestions vs active dispatches', () => {
     expect(split.find((x) => x.from_site === 'depot_b')!.items.water_L).toBe(80) // 20% reserve kept
     const total = split.reduce((sum, x) => sum + (x.items.water_L ?? 0), 0)
     expect(total).toBe(s3.items.water_L)
+  })
+
+  it('ignores negligible shortfalls', () => {
+    // Shelter 3 drinks a few litres below need: not worth a truck.
+    const nearlyFull = snap.inventory.map((r) =>
+      r.site_id === 'shelter_3' && r.item === 'water_L' ? { ...r, quantity: 505 } : r,
+    )
+    const s = deriveAll({ ...snap, inventory: nearlyFull }, {}, NOW).suggestions
+    expect(s.find((x) => x.to_site === 'shelter_3')).toBeUndefined()
   })
 })

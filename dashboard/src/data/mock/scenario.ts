@@ -133,3 +133,34 @@ export function createScenario(now = Date.now()): DashboardSnapshot {
     messages: seedMessages(now),
   }
 }
+
+type IncomingText = Pick<TextMessage, 'phone' | 'body' | 'parsed'>
+
+// Routine texts the mock drips in while the demo runs. Nothing here needs review,
+// so the alert ranking stays stable.
+export const INCOMING_TEXTS: IncomingText[] = [
+  {
+    phone: '603-555-0144', body: 'Leverone: 10 more families checked in, all fine',
+    parsed: { site_id: 'shelter_2', urgency: 'low', intent: 'status', confidence: 0.9 },
+  },
+  {
+    phone: '603-555-0101', body: 'Hanover High: power is back on in the gym',
+    parsed: { site_id: 'shelter_1', urgency: 'low', intent: 'status', confidence: 0.88 },
+  },
+  {
+    phone: '603-555-0181', body: 'Road closed at Route 10 and Lyme Rd, water over the road',
+    parsed: { lat: 43.7195, lng: -72.2795, urgency: 'medium', intent: 'other', confidence: 0.81 },
+  },
+  {
+    phone: '603-555-0190', body: 'Norwich: could use 20 more blankets tonight',
+    parsed: { site_id: 'shelter_4', item: 'blankets', quantity: 20, urgency: 'medium', intent: 'request', confidence: 0.86 },
+  },
+  {
+    phone: '603-555-0122', body: 'Elderly neighbor needs a ride to a shelter, Etna Rd',
+    parsed: { lat: 43.6955, lng: -72.2405, urgency: 'high', intent: 'request', confidence: 0.8 },
+  },
+  {
+    phone: '603-555-0144', body: 'Leverone has 1000 L water on hand',
+    parsed: { site_id: 'shelter_2', item: 'water_L', quantity: 1000, urgency: 'low', intent: 'inventory_report', confidence: 0.91 },
+  },
+]
