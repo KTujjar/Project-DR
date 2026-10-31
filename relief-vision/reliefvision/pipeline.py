@@ -8,9 +8,11 @@ import traceback
 from typing import Any, Dict, Optional
 
 import cv2
+import numpy as np
 import supervision as sv
 
 from . import overlay
+from .heatmap import LiveHeat
 from .camera_motion import CameraMotionEstimator
 from .detector import AidDetector, YoloPersonDetector
 from .events import EventSink
@@ -58,6 +60,9 @@ class CameraWorker(threading.Thread):
             motion = CameraMotionEstimator(**cfg["camera_motion"])
             analyzer = SceneAnalyzer(cfg)
             mode_cfg = cam.get("mode", "auto")
+            ov = cfg["overlay"]
+            live_heat = (LiveHeat(ov["heat"], ov["heat_half_life_s"], follow=bool(ov.get("heat_follow")))
+                         if ov.get("heat") else None)
             last_emit = None
             for frame, ts in src.frames():
                 if self.stop_flag.is_set():
@@ -66,10 +71,8 @@ class CameraWorker(threading.Thread):
                 dets = (tracker.update(raw) if hasattr(tracker, "update")
                         else tracker.update_with_detections(raw))
 
-                if mode_cfg in ("fixed", "mobile"):
-                    mode = mode_cfg
-                else:
-                    mode = motion.update(frame, dets.xyxy, ts, hint=src.motion_hint())
+                auto_mode = motion.update(frame, dets.xyxy, ts, hint=src.motion_hint())   # also tracks camera motion
+                mode = mode_cfg if mode_cfg in ("fixed", "mobile") else auto_mode
 
                 aid_counts, aid_dets = (None, [])
                 if self.aid_det is not None:
@@ -84,7 +87,21 @@ class CameraWorker(threading.Thread):
                     self.last_event = ev
                     self.sink.emit(ev)
 
-                self.latest = overlay.draw(frame, dets, res["event"], res["child_ids"], aid_dets)
+                base = frame
+                if live_heat is not None:
+                    feet = (np.c_[(dets.xyxy[:, 0] + dets.xyxy[:, 2]) / 2, dets.xyxy[:, 3]]
+                            if len(dets) else np.zeros((0, 2)))
+                    if live_heat.follow:             # heat pinned to the scene while the camera moves
+                        cam_motion = None if auto_mode == "fixed" else motion.last_H   # steady => don't integrate noise
+                        live_heat.update(feet, ts, frame.shape, cam_motion)
+                        base = live_heat.apply(frame)
+                    elif mode == "fixed":            # otherwise heat only makes sense while the view is steady
+                        live_heat.update(feet, ts, frame.shape)
+                        base = live_heat.apply(frame)
+                    else:
+                        live_heat.reset()
+                self.latest = overlay.draw(base, dets, res["event"], res["child_ids"], aid_dets,
+                                           show_grid=cfg["overlay"]["grid"])
                 if self.save_dir:
                     if writer is None:
                         os.makedirs(self.save_dir, exist_ok=True)

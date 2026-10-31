@@ -31,6 +31,12 @@ def main(argv=None) -> int:
     ap.add_argument("--webhook", help="POST events here (buffered in a local outbox if offline)")
     ap.add_argument("--events", help="JSONL output path (default events.jsonl)")
     ap.add_argument("--no-aids", action="store_true", help="skip the wheelchair/walker detector")
+    ap.add_argument("--grid", action="store_true", help="shade crowded grid cells on the video (off by default)")
+    ap.add_argument("--heat", nargs="?", const="recent", choices=["recent", "cumulative"],
+                    help="live heat layer: 'recent' (fades, default) or 'cumulative' (builds up). Fixed camera only")
+    ap.add_argument("--heat-half-life", type=float, help="seconds for 'recent' heat to fade by half (default 10)")
+    ap.add_argument("--follow-camera", action="store_true",
+                    help="with --heat: keep the heat pinned to the scene while the camera moves (pan/tilt/walk)")
     ap.add_argument("--no-display", action="store_true")
     ap.add_argument("--save-video", metavar="DIR", help="write annotated video per camera into DIR")
     ap.add_argument("--max-frames", type=int, help="stop after N processed frames per camera")
@@ -52,6 +58,16 @@ def main(argv=None) -> int:
         cfg["events"]["jsonl"] = args.events
     if args.no_aids:
         cfg["aids"]["enabled"] = False
+    if args.grid:
+        cfg["overlay"]["grid"] = True
+    if args.heat:
+        cfg["overlay"]["heat"] = args.heat
+    if args.heat_half_life:
+        cfg["overlay"]["heat_half_life_s"] = args.heat_half_life
+    if args.follow_camera:
+        cfg["overlay"]["heat_follow"] = True
+        if not cfg["overlay"]["heat"]:
+            cfg["overlay"]["heat"] = "cumulative"      # --follow-camera alone implies a heat layer
     if args.device:
         cfg["device"] = args.device
 

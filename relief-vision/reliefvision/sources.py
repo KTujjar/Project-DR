@@ -28,6 +28,8 @@ Frame = Tuple[np.ndarray, float]
 class _LiveSource:
     """Keeps only the newest frame so slow processing never builds up latency."""
 
+    is_live = True
+
     def __init__(self, process_fps: float):
         self.period = 1.0 / max(process_fps, 0.1)
         self._lock = threading.Lock()

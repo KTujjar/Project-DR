@@ -23,6 +23,12 @@ DEFAULTS: Dict[str, Any] = {
     },
     "camera_motion": {"thresh_px_s": 4.0, "hold_s": 3.0},
     "grid": {"rows": 6, "cols": 8, "cell_capacity": 3},
+    "overlay": {
+        "grid": False,            # True = shade crowded grid cells on the video (or use --grid)
+        "heat": None,             # None | "recent" | "cumulative": live heat layer (or use --heat)
+        "heat_half_life_s": 10.0,  # how fast 'recent' heat fades
+        "heat_follow": False,      # True = keep heat pinned to the scene while the camera moves (--follow-camera)
+    },
     "metrics": {
         "count_window_s": 3.0,
         "speed_window_s": 3.0,

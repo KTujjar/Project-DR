@@ -19,6 +19,16 @@ class CameraMotionEstimator:
         self._ema = 0.0
         self._mode = "fixed"
         self._calm_since: Optional[float] = None
+        # Homography mapping the CURRENT frame's pixels onto the PREVIOUS frame's (full-resolution
+        # coordinates), from the background only. None when it couldn't be estimated this frame.
+        self.last_H: Optional[np.ndarray] = None
+
+    @staticmethod
+    def _plausible(H: np.ndarray) -> bool:
+        if not np.isfinite(H).all():
+            return False
+        det = abs(float(np.linalg.det(H[:2, :2])))
+        return 0.5 < det < 2.0 and abs(H[2, 0]) < 2e-3 and abs(H[2, 1]) < 2e-3
 
     def update(self, frame: np.ndarray, person_boxes: np.ndarray, ts: float,
                hint: Optional[bool] = None) -> str:
@@ -27,6 +37,7 @@ class CameraMotionEstimator:
         small = cv2.cvtColor(cv2.resize(frame, (self.scale_w, int(h * scale))), cv2.COLOR_BGR2GRAY)
 
         speed = None
+        self.last_H = None
         if self._prev is not None and self._prev.shape == small.shape and ts > self._prev_ts:
             mask = np.full(small.shape, 255, np.uint8)
             for x1, y1, x2, y2 in np.asarray(person_boxes).reshape(-1, 4) * scale:  # ignore people
@@ -38,6 +49,12 @@ class CameraMotionEstimator:
                 if ok.sum() >= 8:
                     d = np.linalg.norm((nxt - pts).reshape(-1, 2)[ok], axis=1)
                     speed = float(np.median(d)) / (ts - self._prev_ts)
+                    if ok.sum() >= 12:
+                        Hs, inl = cv2.findHomography(nxt.reshape(-1, 2)[ok], pts.reshape(-1, 2)[ok],
+                                                     cv2.RANSAC, 3.0)
+                        if Hs is not None and inl is not None and int(inl.sum()) >= 10 and self._plausible(Hs):
+                            S = np.diag([scale, scale, 1.0])
+                            self.last_H = np.linalg.inv(S) @ Hs @ S
         self._prev, self._prev_ts = small, ts
 
         if speed is not None:
