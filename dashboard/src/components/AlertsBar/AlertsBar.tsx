@@ -1,0 +1,91 @@
+import { useEffect, useState } from 'react'
+import type { Issue } from '../../logic/priority'
+import { staleSources } from '../../logic/stale'
+import { useDashboardStore } from '../../store/useDashboardStore'
+
+const NO_ISSUES: Issue[] = []
+const TOP_N = 3
+
+const ISSUE_CLASS = {
+  critical: 'bg-red-600 text-white hover:bg-red-700',
+  low: 'bg-yellow-400 text-slate-900 hover:bg-yellow-300',
+  ok: 'bg-slate-700 text-white',
+}
+
+const KIND_ICON = { shortfall: '⚠', capacity: '⚠', needs_review: '✉', camera_offline: '📷' }
+
+function useNow(intervalMs = 1000) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), intervalMs)
+    return () => clearInterval(id)
+  }, [intervalMs])
+  return now
+}
+
+export function AlertsBar() {
+  const priorities = useDashboardStore((s) => s.derived?.priorities ?? NO_ISSUES)
+  const snapshot = useDashboardStore((s) => s.snapshot)
+  const lastFetchAt = useDashboardStore((s) => s.lastFetchAt)
+  const connectionLost = useDashboardStore((s) => s.connectionLost)
+  const selectSite = useDashboardStore((s) => s.selectSite)
+  const now = useNow()
+
+  const top = priorities.slice(0, TOP_N)
+  const more = priorities.length - top.length
+  const stale = snapshot ? staleSources(snapshot, now) : []
+  const fetchAge = lastFetchAt ? Math.max(0, Math.round((now - lastFetchAt) / 1000)) : null
+
+  return (
+    <header className="rounded-lg bg-slate-900 px-3 py-2 text-white">
+      {connectionLost && (
+        <div className="mb-2 rounded bg-red-600 px-2 py-1 text-sm font-semibold">
+          Connection lost. Showing last good data{fetchAge !== null ? ` from ${fetchAge}s ago` : ''}, retrying...
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="whitespace-nowrap">
+          <span className="font-semibold">Project-DR</span> <span className="text-slate-400">Coordinator</span>
+        </div>
+
+        <ol className="flex min-w-0 flex-1 flex-wrap gap-2 lg:flex-nowrap">
+          {top.length === 0 && <li className="text-sm text-green-400">No urgent issues</li>}
+          {top.map((issue, i) => (
+            <li key={issue.id} className="min-w-0">
+              <button
+                type="button"
+                onClick={() => issue.site_id && selectSite(issue.site_id)}
+                title={issue.title}
+                className={`block max-w-[19rem] truncate rounded px-2 py-1 text-left text-xs font-medium ${ISSUE_CLASS[issue.severity]}`}
+              >
+                {i + 1}. {KIND_ICON[issue.kind]} {issue.title}
+              </button>
+            </li>
+          ))}
+          {more > 0 && (
+            <li
+              className="self-center text-xs text-slate-400"
+              title={priorities.slice(TOP_N).map((i) => i.title).join('\n')}
+            >
+              +{more} more
+            </li>
+          )}
+        </ol>
+
+        <div className="flex items-center gap-3 whitespace-nowrap text-xs">
+          {stale.length > 0 ? (
+            <span className="rounded bg-amber-500 px-2 py-1 font-semibold text-slate-900" title="No new data for over 60 s">
+              Stale: {stale.map((s) => `${s.source} (${s.ageSeconds}s)`).join(', ')}
+            </span>
+          ) : (
+            <span className="text-slate-400">
+              <span className={`mr-1 inline-block h-2 w-2 rounded-full ${connectionLost ? 'bg-red-500' : 'bg-green-500'}`} />
+              {fetchAge === null ? 'Loading...' : `Updated ${fetchAge}s ago`}
+            </span>
+          )}
+          <time className="font-mono text-sm tabular-nums">{new Date(now).toLocaleTimeString()}</time>
+        </div>
+      </div>
+    </header>
+  )
+}
