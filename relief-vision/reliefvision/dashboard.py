@@ -200,7 +200,8 @@ class DashboardBridge:
         now = self._clock()
         ids = dets.tracker_id if len(dets) and dets.tracker_id is not None else [None] * len(dets)
         scores = dets.confidence if len(dets) and dets.confidence is not None else [1.0] * len(dets)
-        observations = [(None if t is None else int(t), float(s)) for t, s in zip(ids, scores)]
+        # ByteTrack labels not-yet-confirmed people -1; they aren't a person yet, so count them as untracked.
+        observations = [(None if t is None or int(t) < 0 else int(t), float(s)) for t, s in zip(ids, scores)]
         with self._lock:
             self._last_ts = ts
             passes_before = self._counter.passes_completed

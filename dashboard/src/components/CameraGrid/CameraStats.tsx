@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { fetchCameraStats, type CameraStatsResponse } from '../../data/sources/cameraStats'
+import { endPass, fetchCameraStats, startPass, type CameraStatsResponse } from '../../data/sources/cameraStats'
 import {
   aidsSummary,
   flowLabel,
@@ -49,6 +49,45 @@ function PassRows({ pass }: { pass: PassStatus | null }) {
   )
 }
 
+interface PassControlsProps {
+  pass: PassStatus | null
+  busy: boolean
+  error: string | null
+  onAction(action: 'start' | 'end'): void
+}
+
+// Status plus Start/End buttons, for whoever drives the robot or carries the phone along the line.
+function PassControls({ pass, busy, error, onAction }: PassControlsProps) {
+  return (
+    <Section title="Line count (passes)">
+      <PassRows pass={pass} />
+      {pass && (
+        <div className="mt-2 flex gap-2">
+          {/* Starting discards any pass in progress (including one the camera began on its own),
+              so the operator can always begin a fresh sweep at the start of the line. */}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onAction('start')}
+            className="flex-1 rounded bg-green-700 px-2 py-1 text-xs font-semibold text-white disabled:opacity-40"
+          >
+            {pass.in_pass ? 'Restart pass' : 'Start pass'}
+          </button>
+          <button
+            type="button"
+            disabled={busy || !pass.in_pass}
+            onClick={() => onAction('end')}
+            className="flex-1 rounded bg-red-700 px-2 py-1 text-xs font-semibold text-white disabled:opacity-40"
+          >
+            End pass
+          </button>
+        </div>
+      )}
+      {error && <p className="mt-1 text-xs text-red-300">{error}</p>}
+    </Section>
+  )
+}
+
 function CrowdGrid({ stats }: { stats: CrowdStats }) {
   return (
     <div
@@ -65,7 +104,7 @@ function CrowdGrid({ stats }: { stats: CrowdStats }) {
   )
 }
 
-function StatsBody({ stats, pass }: { stats: CrowdStats; pass: PassStatus | null }) {
+function StatsBody({ stats, passSection }: { stats: CrowdStats; passSection: ReactNode }) {
   const fixed = stats.camera_mode === 'fixed'
   return (
     <div className="space-y-2">
@@ -109,9 +148,7 @@ function StatsBody({ stats, pass }: { stats: CrowdStats; pass: PassStatus | null
         <CrowdGrid stats={stats} />
       </Section>
 
-      <Section title="Line count (passes)">
-        <PassRows pass={pass} />
-      </Section>
+      {passSection}
 
       {stats.insights.length > 0 && (
         <Section title="Insights">
@@ -135,6 +172,8 @@ function StatsBody({ stats, pass }: { stats: CrowdStats; pass: PassStatus | null
 export function CameraStats({ cameraId, cvUrl }: { cameraId: string; cvUrl: string }) {
   const [data, setData] = useState<CameraStatsResponse | null>(null)
   const [unreachable, setUnreachable] = useState(false)
+  const [passBusy, setPassBusy] = useState(false)
+  const [passError, setPassError] = useState<string | null>(null)
 
   // Rendered with key={cameraId}, so switching cameras starts from a fresh, empty state.
   useEffect(() => {
@@ -158,6 +197,22 @@ export function CameraStats({ cameraId, cvUrl }: { cameraId: string; cvUrl: stri
     }
   }, [cameraId, cvUrl])
 
+  const runPass = async (action: 'start' | 'end') => {
+    setPassBusy(true)
+    setPassError(null)
+    try {
+      const pass = await (action === 'start' ? startPass : endPass)(cvUrl, cameraId)
+      setData((d) => (d ? { ...d, pass } : d))
+    } catch {
+      setPassError(`Couldn't ${action} the pass. Is the CV service running?`)
+    } finally {
+      setPassBusy(false)
+    }
+  }
+  const passSection = data && (
+    <PassControls pass={data.pass} busy={passBusy} error={passError} onAction={(a) => void runPass(a)} />
+  )
+
   const stats = data && data.stats !== 'unavailable' ? data.stats : null
   let body: ReactNode
   if (!data) body = <p className="text-sm text-slate-400">{unreachable ? 'CV service unreachable.' : 'Loading metrics…'}</p>
@@ -166,12 +221,10 @@ export function CameraStats({ cameraId, cvUrl }: { cameraId: string; cvUrl: stri
     body = (
       <div className="space-y-2">
         <p className="text-sm text-slate-400">Waiting for first measurements…</p>
-        <Section title="Line count (passes)">
-          <PassRows pass={data.pass} />
-        </Section>
+        {passSection}
       </div>
     )
-  else body = <StatsBody stats={data.stats} pass={data.pass} />
+  else body = <StatsBody stats={data.stats} passSection={passSection} />
 
   const stale = unreachable || (stats !== null && isStatsStale(stats.ts))
   return (

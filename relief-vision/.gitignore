@@ -10,3 +10,4 @@ heatmap/
 calib*.json
 *.mov
 *.mp4
+*.token

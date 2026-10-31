@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { fetchCameraStats } from './cameraStats'
+import { endPass, fetchCameraStats, startPass } from './cameraStats'
 
 const PASS = { camera_id: 'cam_s3', in_pass: false, managed: true, running_count: 4, last_pass_count: 4, passes_completed: 1 }
 
@@ -38,5 +38,27 @@ describe('fetchCameraStats', () => {
 
   it('still returns stats when the pass status is missing', async () => {
     expect((await fetchCameraStats('http://cv', 'cam_s3', fakeFetch(200, { people: 1 }, 404))).pass).toBeNull()
+  })
+})
+
+describe('startPass / endPass', () => {
+  it('POSTs to the pass endpoints and returns the new status', async () => {
+    const f = vi.fn(async () => new Response(JSON.stringify({ ...PASS, in_pass: true }), { status: 200 }))
+    expect((await startPass('http://cv:8001/', 'cam_robot', f)).in_pass).toBe(true)
+    await endPass('http://cv:8001', 'cam_robot', f)
+    const calls = f.mock.calls as unknown as [string, RequestInit][]
+    expect(calls.map(([url, init]) => `${init.method} ${url}`)).toEqual([
+      'POST http://cv:8001/api/cameras/cam_robot/pass/start',
+      'POST http://cv:8001/api/cameras/cam_robot/pass/end',
+    ])
+  })
+
+  it('throws when the CV service rejects or is unreachable', async () => {
+    const notFound = vi.fn(async () => new Response('{}', { status: 404, statusText: 'Not Found' }))
+    await expect(startPass('http://cv', 'cam_s2', notFound)).rejects.toThrow(/404/)
+    const down = vi.fn(async () => {
+      throw new TypeError('Failed to fetch')
+    })
+    await expect(endPass('http://cv', 'cam_robot', down)).rejects.toThrow('Failed to fetch')
   })
 })

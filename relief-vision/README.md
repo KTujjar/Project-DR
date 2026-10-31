@@ -83,6 +83,34 @@ Some fields are `null` at the start: speed and flow need about 1 s of tracking, 
 
 `camera_mode` is detected automatically (background optical flow, plus robot odometry if `?odom=/odom` is given). While the camera moves, only snapshot statistics are produced (count, density, children, aids); flow, stagnation and free space are `null` and spatial memory resets. Park the robot (or use a tripod phone) and the full metrics return after about 3 s. Force a mode with `--mode fixed|mobile` or `mode:` in the config. A "stop and scan" robot routine (drive, park for 20-30 s, repeat) works well with this.
 
+## TurtleBot3 camera (rescue-bot Mission Control)
+
+The Project-DR TurtleBot3 Burger (`rescue-bot` branch) doesn't publish its camera as a ROS topic: the Pi encodes JPEGs and its **Mission Control** app serves them behind a private SSH tunnel at `http://127.0.0.1:8872`. reliefvision reads them through Mission Control's teammate model API v1.0 (see `models/README.md` on `rescue-bot`), so the robot works like any other camera: events, heat, dashboard tile, crowd metrics and pass counting.
+
+**Quickest way:** on the Mac connected to the robot, run `./start-with-robot.sh /path/to/rescue-bot-folder` from a separate `main` checkout. It uses `config.robot.yaml` and starts reliefvision and the dashboard together; see the repository root `README.md`. The manual setup is below.
+
+```yaml
+cameras:
+  - id: cam_robot
+    site_id: shelter_3                                   # which dashboard site the robot is counting
+    source: "turtlebot:http://127.0.0.1:8872"
+    token_file: /path/to/rescue-bot/.robot/runtime/service.token
+    mode: auto
+    # poll_fps: 5               # how often to ask for a new frame (default 5; lower it if the Pi is busy)
+    # report_detections: true   # show reliefvision's person boxes on the robot operator's video
+```
+
+1. On the Mac connected to the robot, start the mission from the `rescue-bot` checkout: `./scripts/start.sh`.
+2. Run reliefvision **on that same Mac**: `reliefvision --config config.yaml --serve --serve-video --heat --follow-camera`. To run it on another machine, open your own authorized SSH tunnel to the Pi and copy the token securely; use that tunnel's URL in `source`.
+3. In the dashboard, click the robot's camera tile. Use **Start pass** / **End pass** in its metrics panel as the robot drives along a line of people.
+
+- **Robot motion** comes from the robot's odometry, so `camera_mode` switches to `mobile` while it drives. Use `--follow-camera` to keep heat while it moves.
+- **People boxes** go back to Mission Control as `model_id: reliefvision-people` observations. They show on the robot's own video and never control the robot: the API has no movement endpoint.
+- **Errors never stop the camera.** A missing tunnel, a rejected token (401), no camera frame yet (503) or mock mode just retry; the dashboard shows the camera offline until frames arrive. reliefvision can start before the robot: it waits for the token file that `./scripts/start.sh` creates, and re-reads it after a 401.
+- **Keep the rescue-bot folder separate** from your `main` checkout. Switching it to `main` would remove the robot software from that folder.
+- **The token** is read from `token_file` (or `$TURTBOT_MODEL_TOKEN_FILE`) and only sent in the `Authorization` header. Never commit it, print it or put it in a URL.
+- **Without the robot:** `python tests/fake_mission_control.py --token-file <file> --source 0` serves your webcam through the same API on port 8872.
+
 ## Heat maps (where people spent time)
 
 Heat maps use each person's **foot point**, because the floor is the surface being mapped. Colours run blue (less time) to red (more time).
@@ -247,6 +275,7 @@ calib*.json
 reliefvision/   sources.py (file/webcam/RTSP/ROS 2) · detector.py · camera_motion.py · metrics.py
                 overlay.py · events.py · pipeline.py · schema.py · config.py · cli.py · heatmap.py
                 dashboard API (--serve): passcount.py · dashboard.py · server.py · static/phone.html
+                TurtleBot camera: missioncontrol.py · observers.py (tests/fake_mission_control.py for demos)
 selftest.py · mock_receiver.py · config.yaml · pyproject.toml · requirements.txt
 tests/ (pytest: pip install -e ".[server,dev]")
 ```
