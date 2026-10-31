@@ -1,0 +1,23 @@
+# reliefvision for the TurtleBot3 camera, used by ../start-with-robot.sh.
+# Run on the Mac that is connected to the robot, after the robot's Mission Control is up
+# (./scripts/start.sh in the rescue-bot folder). Anything omitted falls back to reliefvision/config.py.
+process_fps: 8
+
+aids:
+  enabled: false        # wheelchair/walker detector: big first download; set true if wanted
+
+overlay:
+  heat: recent          # heat layer on the dashboard video
+  heat_follow: true     # keep heat on the floor while the robot drives (--follow-camera)
+
+server:                 # coordinator-dashboard API on http://localhost:8001
+  enabled: true
+  video: true           # stream the annotated robot video to the dashboard tile
+
+cameras:
+  - id: cam_robot
+    site_id: shelter_3  # which dashboard site the robot is counting; change as needed
+    source: "turtlebot:http://127.0.0.1:8872"
+    # Token: $TURTBOT_MODEL_TOKEN_FILE (set by start-with-robot.sh to
+    # <rescue-bot folder>/.robot/runtime/service.token). Never commit it.
+    mode: auto
