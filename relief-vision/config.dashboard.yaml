@@ -8,7 +8,7 @@ aids:
   enabled: false        # wheelchair/walker detector: big first download; set true if wanted
 
 overlay:
-  heat: null            # heat map off; set to "recent" (or "cumulative") and restart to turn it on
+  heat: recent          # heat layer on the dashboard video (null = off)
   heat_follow: true     # keep heat on the floor while the phone moves
 
 server:                 # coordinator-dashboard API on http://localhost:8001
