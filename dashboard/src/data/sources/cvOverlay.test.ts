@@ -49,7 +49,7 @@ describe('withCvOverlay', () => {
     expect(snap.locations).toHaveLength(7)
   })
 
-  it('keeps the last good CV data when the service goes down', async () => {
+  it('keeps the last good CV data, marked offline, when the service goes down', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     let up = true
     const f = vi.fn(async (url: string | URL | Request) => (up ? cvFetch()(url) : cvFetch(false)(url)))
@@ -60,8 +60,13 @@ describe('withCvOverlay', () => {
     const snap = await src.getSnapshot()
     await src.getSnapshot()
 
-    expect(snap.cameras.find((c) => c.camera_id === 'cam_s3')).toEqual(CV_CAMERA)
+    expect(snap.cameras.find((c) => c.camera_id === 'cam_s3')).toEqual({ ...CV_CAMERA, online: false })
+    expect(snap.peopleCounts.filter((p) => p.camera_id === 'cam_s3')).toEqual([CV_COUNT])
     expect(warn).toHaveBeenCalledTimes(1)
+
+    up = true
+    const back = await src.getSnapshot()
+    expect(back.cameras.find((c) => c.camera_id === 'cam_s3')?.online).toBe(true)
     warn.mockRestore()
   })
 

@@ -16,8 +16,8 @@ export function mergeCv(base: DashboardSnapshot, cv: CvData): DashboardSnapshot 
   }
 }
 
-// If the CV service is unreachable, the last good CV data is reused, so its cameras' timestamps
-// age and the dashboard's stale-data warning fires instead of the whole snapshot failing.
+// If the CV service is unreachable, the last good CV data is reused with its cameras marked offline,
+// so they grey out and their timestamps age into the stale-data warning instead of the snapshot failing.
 export function withCvOverlay(base: DataSource, cvUrl: string, fetchImpl: typeof fetch = (...args) => fetch(...args)): DataSource {
   const root = cvUrl.replace(/\/+$/, '')
   let lastGood: CvData | null = null
@@ -37,11 +37,12 @@ export function withCvOverlay(base: DataSource, cvUrl: string, fetchImpl: typeof
       ])
       lastGood = { cameras, peopleCounts }
       warned = false
+      return lastGood
     } catch (err) {
       if (!warned) console.warn('CV service unreachable, keeping last camera data', err)
       warned = true
+      return lastGood && { ...lastGood, cameras: lastGood.cameras.map((c) => ({ ...c, online: false })) }
     }
-    return lastGood
   }
 
   return {
