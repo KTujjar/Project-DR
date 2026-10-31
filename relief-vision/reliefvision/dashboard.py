@@ -24,6 +24,7 @@ from .passcount import PassCounter
 JPEG_EVERY_S = 0.1          # stream at most 10 frames per second
 JPEG_MAX_WIDTH = 640
 PUBLISH_EVERY_S = 1.0       # heartbeat so the dashboard sees fresh timestamps
+CHAT_FRAME_EVERY_S = 1.0    # how often the camera chatbot's "current image" is refreshed
 
 
 # --------------------------------------------------------------------------- contracts
@@ -186,15 +187,18 @@ class DashboardBridge:
 
     def __init__(self, camera_id: str, site_id: str, state: DashboardState, conf: float = 0.35,
                  min_track_hits: int = 3, pass_gap_s: float = 5.0,
-                 clock: Callable[[], float] = time.time):
+                 clock: Callable[[], float] = time.time, history=None):
         self.camera_id, self.site_id = camera_id, site_id
         self._state = state
         self._clock = clock
+        # history.CameraHistory for the camera chatbot (optional): finished passes and the latest frame.
+        self._history = history
         self._lock = threading.Lock()
         self._counter = PassCounter(conf=conf, min_hits=min_track_hits, gap_s=pass_gap_s)
         self._last_ts = 0.0          # pipeline time (simulated for video files), used for pass gaps
         self._last_publish = float("-inf")
         self._last_jpeg = float("-inf")
+        self._last_chat_frame = float("-inf")
 
     def on_frame(self, frame: np.ndarray, dets, ts: float) -> None:
         now = self._clock()
@@ -206,13 +210,21 @@ class DashboardBridge:
             self._last_ts = ts
             passes_before = self._counter.passes_completed
             self._counter.observe(observations, ts)
+            if self._counter.passes_completed != passes_before:
+                self._record_pass(now)
             if self._counter.passes_completed != passes_before or now - self._last_publish >= PUBLISH_EVERY_S:
                 self._publish(now)
             jpeg = None
             if self._state.video and is_due(self._last_jpeg, JPEG_EVERY_S, now):
                 self._last_jpeg = now
                 jpeg = encode_jpeg(frame)
+            chat_jpeg = None
+            if self._history is not None and is_due(self._last_chat_frame, CHAT_FRAME_EVERY_S, now):
+                self._last_chat_frame = now
+                chat_jpeg = jpeg or encode_jpeg(frame)
         self._state.record_frame(self.camera_id, jpeg, at=now)
+        if chat_jpeg is not None:
+            self._history.set_frame(self.camera_id, chat_jpeg, ts=now)
 
     # --- pass control (HTTP server thread) ---
     def start_pass(self) -> dict:
@@ -222,9 +234,17 @@ class DashboardBridge:
 
     def end_pass(self) -> dict:
         with self._lock:
+            passes_before = self._counter.passes_completed
             self._counter.end()
-            self._publish(self._clock())
+            now = self._clock()
+            if self._counter.passes_completed != passes_before:
+                self._record_pass(now)
+            self._publish(now)
             return self._status()
+
+    def _record_pass(self, now: float) -> None:
+        if self._history is not None and self._counter.last_total is not None:
+            self._history.record_pass(self.camera_id, self._counter.last_total, ts=now)
 
     def pass_status(self) -> dict:
         with self._lock:
