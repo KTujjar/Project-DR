@@ -8,15 +8,15 @@ import { Panel } from '../Panel'
 const NO_MESSAGES: TextMessage[] = []
 
 const URGENCY_CLASS = {
-  low: 'bg-slate-100 text-slate-700',
-  medium: 'bg-yellow-100 text-yellow-800',
-  high: 'bg-orange-100 text-orange-800',
+  low: 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200',
+  medium: 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200',
+  high: 'bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200',
   critical: 'bg-red-600 text-white',
 }
 
 function ParsedFields({ m, siteName }: { m: TextMessage; siteName: (id: string) => string }) {
   if (m.direction === 'out') return <span className="text-slate-400">Outgoing reply</span>
-  if (!m.parsed) return <span className="font-semibold text-red-700">Could not parse</span>
+  if (!m.parsed) return <span className="font-semibold text-red-700 dark:text-red-400">Could not parse</span>
   const p = m.parsed
   return (
     <dl className="grid grid-cols-[auto_1fr] gap-x-2">
@@ -84,7 +84,8 @@ export function TextFeed() {
   return (
     <Panel title="Text Feed">
       <div className="flex h-full flex-col">
-        <ul className="min-h-0 flex-1 divide-y divide-slate-100 overflow-auto">
+        <ul className="min-h-0 flex-1 divide-y divide-slate-100 dark:divide-slate-800 overflow-auto">
+          {newestFirst.length === 0 && <li className="p-3 text-sm text-slate-400">No texts yet.</li>}
           {newestFirst.map((m) => {
             const selected = (m.parsed?.site_id && m.parsed.site_id === selectedSiteId) || replyTo?.message_id === m.message_id
             const tone = m.needs_review
@@ -101,7 +102,7 @@ export function TextFeed() {
                 }`}
               >
                 <div>
-                  <div className="mb-0.5 flex items-center gap-1.5 text-slate-500">
+                  <div className="mb-0.5 flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
                     <span>{m.direction === 'in' ? '←' : '→'}</span>
                     <span className="font-mono">{maskPhone(m.phone)}</span>
                     <span>{timeAgo(m.timestamp)}</span>
@@ -112,9 +113,9 @@ export function TextFeed() {
                     )}
                     {m.needs_review && <span className="rounded bg-red-600 px-1 font-semibold text-white">review</span>}
                   </div>
-                  <p className="text-slate-900">{m.body}</p>
+                  <p className="text-slate-900 dark:text-slate-100">{m.body}</p>
                 </div>
-                <div className="border-l border-slate-200 pl-2">
+                <div className="border-l border-slate-200 dark:border-slate-700 pl-2">
                   <ParsedFields m={m} siteName={siteName} />
                 </div>
               </li>
@@ -122,13 +123,13 @@ export function TextFeed() {
           })}
         </ul>
 
-        <form onSubmit={onSend} className="flex gap-1 border-t border-slate-200 p-2">
+        <form onSubmit={onSend} className="flex gap-1 border-t border-slate-200 dark:border-slate-700 p-2">
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             disabled={!replyTo || sending}
             placeholder={replyTo ? `Reply to ${maskPhone(replyTo.phone)}` : 'Click a message to reply'}
-            className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1 text-xs disabled:bg-slate-50"
+            className="min-w-0 flex-1 rounded border border-slate-300 dark:border-slate-600 px-2 py-1 text-xs bg-white dark:bg-slate-800 disabled:bg-slate-50 dark:disabled:bg-slate-900"
           />
           <button
             type="submit"

@@ -8,9 +8,9 @@ export const SEVERITY_COLOR: Record<Severity, string> = {
 }
 
 const BADGE_CLASS: Record<Severity, string> = {
-  ok: 'bg-green-100 text-green-800',
-  low: 'bg-yellow-100 text-yellow-800',
-  critical: 'bg-red-100 text-red-800',
+  ok: 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200',
+  low: 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200',
+  critical: 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200',
 }
 
 const LABEL: Record<Severity, string> = { ok: 'OK', low: 'Low', critical: 'Critical' }

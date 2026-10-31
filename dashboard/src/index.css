@@ -4,6 +4,8 @@
 
 html, body, #root { height: 100%; }
 body { @apply bg-slate-100 text-slate-900; }
+html.dark { color-scheme: dark; }
+html.dark body { @apply bg-slate-950 text-slate-100; }
 
 /* Chart roles (validated with the dataviz palette script against the panel surfaces). */
 :root {
@@ -13,3 +15,20 @@ body { @apply bg-slate-100 text-slate-900; }
   --viz-text-secondary: #52514e;
   --viz-grid: #e5e7eb;
 }
+html.dark {
+  --viz-series-1: #3987e5;
+  --viz-critical: #d03b3b;
+  --viz-threshold: #f0efec;
+  --viz-text-secondary: #c3c2b7;
+  --viz-grid: #334155;
+}
+
+/* Dark map: darken OSM tiles and restyle Leaflet's popups and controls. */
+html.dark .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.4); }
+html.dark .leaflet-container { background: #0f172a; }
+html.dark .leaflet-popup-content-wrapper,
+html.dark .leaflet-popup-tip,
+html.dark .leaflet-tooltip { background: #1e293b; color: #e2e8f0; border-color: #334155; }
+html.dark .leaflet-bar a { background: #1e293b; color: #e2e8f0; border-color: #334155; }
+html.dark .leaflet-control-attribution { background: rgba(15, 23, 42, 0.8); color: #94a3b8; }
+html.dark .leaflet-control-attribution a { color: #7dd3fc; }

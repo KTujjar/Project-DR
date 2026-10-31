@@ -66,6 +66,7 @@ export function CameraGrid() {
   return (
     <Panel title="Cameras">
       <div className="grid h-full auto-rows-fr grid-cols-2 gap-2 p-2">
+        {cameras.length === 0 && <p className="col-span-2 p-1 text-sm text-slate-400">No cameras connected.</p>}
         {cameras.map((cam) => (
           <button
             key={cam.camera_id}

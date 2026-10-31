@@ -8,8 +8,8 @@ import { Panel } from '../Panel'
 import { SeverityBadge } from '../SeverityBadge'
 
 const NO_ROWS: SiteRow[] = []
-const TREND_ARROW = { up: '▲', down: '▼', flat: '–' }
-const TREND_CLASS = { up: 'text-red-600', down: 'text-green-600', flat: 'text-slate-400' }
+const TREND_ARROW = { up: '▲', down: '▼', flat: '→' }
+const TREND_CLASS = { up: 'text-red-600 dark:text-red-400', down: 'text-green-600 dark:text-green-400', flat: 'text-slate-400' }
 
 type SortKey = 'severity' | 'name'
 
@@ -31,7 +31,7 @@ export function NeedSupplyPanel() {
     <select
       value={sortKey}
       onChange={(e) => setSortKey(e.target.value as SortKey)}
-      className="rounded border border-slate-300 px-1 py-0.5 text-xs"
+      className="rounded border border-slate-300 dark:border-slate-600 px-1 py-0.5 text-xs"
       aria-label="Sort shelters"
     >
       <option value="severity">Sort: severity</option>
@@ -41,11 +41,12 @@ export function NeedSupplyPanel() {
 
   return (
     <Panel title="Need vs Supply (24h)" actions={sortControl}>
+      {rows.length === 0 && <p className="p-3 text-sm text-slate-400">No shelters reported yet.</p>}
       <table className="w-full text-xs">
-        <thead className="sticky top-0 bg-slate-50 text-left text-slate-500">
+        <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
           <tr>
             <th className="px-2 py-1 font-medium">Shelter</th>
-            <th className="px-1 py-1 font-medium">People</th>
+            <th className="px-1 py-1 font-medium" title="Headcount, trend, % of capacity">People</th>
             {ITEM_TYPES.map((item) => (
               <th key={item} className="px-1 py-1 text-right font-medium">
                 {ITEM_LABEL[item]}
@@ -61,32 +62,35 @@ export function NeedSupplyPanel() {
               <tr
                 key={id}
                 onClick={() => selectSite(id)}
-                className={`cursor-pointer border-t border-slate-100 hover:bg-slate-50 ${
-                  id === selectedSiteId ? 'bg-sky-50 outline outline-2 -outline-offset-2 outline-sky-400' : ''
+                className={`cursor-pointer border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 ${
+                  id === selectedSiteId ? 'bg-sky-50 dark:bg-sky-950 outline outline-2 -outline-offset-2 outline-sky-400' : ''
                 }`}
               >
-                <td className="px-2 py-1.5 font-medium">{row.location.name}</td>
-                <td className="whitespace-nowrap px-1 py-1.5">
+                <td className="min-w-[6rem] px-2 py-1 font-medium leading-tight">{row.location.name}</td>
+                <td className="whitespace-nowrap px-1 py-1">
                   {row.headcount} <span className={TREND_CLASS[row.trend]}>{TREND_ARROW[row.trend]}</span>
                   {row.capacityRatio !== null && (
-                    <div className={row.overCapacity ? 'font-semibold text-red-600' : 'text-slate-400'}>
-                      {Math.round(row.capacityRatio * 100)}% cap
-                    </div>
+                    <span
+                      title="Share of shelter capacity in use"
+                      className={`ml-1 ${row.overCapacity ? 'font-semibold text-red-600 dark:text-red-400' : 'text-slate-400'}`}
+                    >
+                      {Math.round(row.capacityRatio * 100)}%
+                    </span>
                   )}
                 </td>
                 {ITEM_TYPES.map((item) => {
                   const s = row.items[item]
                   return (
-                    <td key={item} className="whitespace-nowrap px-1 py-1.5 text-right tabular-nums">
+                    <td key={item} className="whitespace-nowrap px-1 py-1 text-right tabular-nums">
                       <div title={`On hand ${s.onHand} / need ${s.need}`}>
                         {s.onHand.toLocaleString()}
                         <span className="text-slate-400">/{s.need.toLocaleString()}</span>
                       </div>
-                      {s.shortfall > 0 && <div className="font-semibold text-red-600">-{s.shortfall.toLocaleString()}</div>}
+                      {s.shortfall > 0 && <div className="font-semibold text-red-600 dark:text-red-400">-{s.shortfall.toLocaleString()}</div>}
                     </td>
                   )
                 })}
-                <td className="px-2 py-1.5">
+                <td className="px-2 py-1">
                   <SeverityBadge severity={row.severity} />
                 </td>
               </tr>

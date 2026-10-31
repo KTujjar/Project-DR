@@ -33,7 +33,7 @@ function Legend() {
     </span>
   )
   return (
-    <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+    <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
       {dot(SEVERITY_COLOR.ok, 'OK')}
       {dot(SEVERITY_COLOR.low, 'Low')}
       {dot(SEVERITY_COLOR.critical, 'Critical')}
@@ -157,7 +157,7 @@ export function MapPanel({ className = '' }: { className?: string }) {
                         <div>
                           {row.headcount} people{l.capacity ? ` / ${l.capacity} capacity` : ''}
                         </div>
-                        {offline && <div className="text-slate-500">Camera offline: headcount may be stale</div>}
+                        {offline && <div className="text-slate-500 dark:text-slate-400">Camera offline: headcount may be stale</div>}
                         <table className="text-xs">
                           <tbody>
                             {ITEM_TYPES.map((item) => (

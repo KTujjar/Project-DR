@@ -23,17 +23,39 @@ function ThresholdTick(props: { x?: number; y?: number; width?: number; height?:
   return <line x1={tx} x2={tx} y1={y - 3} y2={y + height + 3} stroke="var(--viz-threshold)" strokeWidth={2} />
 }
 
+// On-hand value drawn just past the end of whichever bar `show` picks for that row.
+function ValueLabel(props: {
+  x?: number | string
+  y?: number | string
+  width?: number | string
+  height?: number | string
+  index?: number
+  data?: BarRow[]
+  show: (row: BarRow) => boolean
+}) {
+  const row = props.index === undefined ? undefined : props.data?.[props.index]
+  if (!row || !props.show(row)) return null
+  const x = Number(props.x) + Number(props.width) + 6
+  const y = Number(props.y) + Number(props.height) / 2
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null
+  return (
+    <text x={x} y={y} dy="0.35em" fontSize={11} fill="var(--viz-text-secondary)">
+      {row.quantity.toLocaleString()}
+    </text>
+  )
+}
+
 function ChartTooltip({ active, payload }: { active?: boolean; payload?: { payload: BarRow }[] }) {
   if (!active || !payload?.length) return null
   const row = payload[0].payload
   const short = needTickBeyondBar(row)
   return (
-    <div className="rounded border border-slate-200 bg-white px-2 py-1 text-xs shadow">
+    <div className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-xs shadow">
       <div className="font-semibold">{row.name}</div>
       <div>On hand: {row.quantity.toLocaleString()}</div>
       {row.threshold !== null && <div>24h need: {row.threshold.toLocaleString()}</div>}
-      {short && <div className="font-semibold text-red-700">⚠ Below need</div>}
-      {row.updated && <div className="text-slate-500">Updated {timeAgo(row.updated)}</div>}
+      {short && <div className="font-semibold text-red-700 dark:text-red-400">⚠ Below need</div>}
+      {row.updated && <div className="text-slate-500 dark:text-slate-400">Updated {timeAgo(row.updated)}</div>}
     </div>
   )
 }
@@ -64,7 +86,7 @@ export function InventoryPanel() {
     <select
       value={item}
       onChange={(e) => setItem(e.target.value as ItemType)}
-      className="rounded border border-slate-300 px-1 py-0.5 text-xs"
+      className="rounded border border-slate-300 dark:border-slate-600 px-1 py-0.5 text-xs"
       aria-label="Filter inventory by item"
     >
       {ITEM_TYPES.map((i) => (
@@ -77,7 +99,8 @@ export function InventoryPanel() {
 
   return (
     <Panel title="Inventory" actions={filter}>
-      <div className="flex h-full min-h-[200px] flex-col">
+      {data.length === 0 && <p className="p-3 text-sm text-slate-400">No inventory reported yet.</p>}
+      <div className={`flex h-full min-h-[200px] flex-col ${data.length === 0 ? 'hidden' : ''}`}>
         <div className="min-h-0 flex-1">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} layout="vertical" margin={{ top: 8, right: 48, bottom: 0, left: 8 }} barGap={-14}>
@@ -107,26 +130,16 @@ export function InventoryPanel() {
                     strokeWidth={2}
                   />
                 ))}
-                <LabelList
-                  position="right"
-                  fontSize={11}
-                  fill="var(--viz-text-secondary)"
-                  valueAccessor={(entry: { payload: BarRow }) => (needTickBeyondBar(entry.payload) ? '' : entry.payload.quantity.toLocaleString())}
-                />
+                <LabelList content={(props) => <ValueLabel {...props} data={data} show={(row) => !needTickBeyondBar(row)} />} />
               </Bar>
               <Bar dataKey="threshold" barSize={14} shape={<ThresholdTick />} isAnimationActive={false}>
                 {/* When the need tick sits past the bar, put the value after the tick so they don't collide. */}
-                <LabelList
-                  position="right"
-                  fontSize={11}
-                  fill="var(--viz-text-secondary)"
-                  valueAccessor={(entry: { payload: BarRow }) => (needTickBeyondBar(entry.payload) ? entry.payload.quantity.toLocaleString() : '')}
-                />
+                <LabelList content={(props) => <ValueLabel {...props} data={data} show={needTickBeyondBar} />} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
-        <p className="flex justify-between border-t border-slate-100 px-3 py-1 text-xs text-slate-500">
+        <p className="flex justify-between border-t border-slate-100 dark:border-slate-800 px-3 py-1 text-xs text-slate-500 dark:text-slate-400">
           <span>
             <span className="mr-1 inline-block h-2 w-2 bg-[var(--viz-series-1)]" />
             On hand

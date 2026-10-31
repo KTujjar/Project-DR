@@ -9,8 +9,13 @@ import { TextFeed } from './components/TextFeed/TextFeed'
 import { triggerDemoEvent } from './data/sources'
 import { useDashboardStore } from './store/useDashboardStore'
 
+function Skeleton({ className = '' }: { className?: string }) {
+  return <div className={`animate-pulse rounded-lg bg-slate-200 dark:bg-slate-800 ${className}`} />
+}
+
 export default function App() {
   const startPolling = useDashboardStore((s) => s.startPolling)
+  const loaded = useDashboardStore((s) => s.snapshot !== null)
 
   useEffect(() => startPolling(), [startPolling])
 
@@ -32,15 +37,30 @@ export default function App() {
     <div className="flex min-h-full flex-col gap-2 p-2 lg:h-full">
       <AlertsBar />
 
-      <main className="grid min-h-0 flex-1 grid-cols-1 gap-2 lg:grid-cols-3 lg:grid-rows-[3fr_2fr]">
-        <MapPanel className="min-h-[360px] lg:col-span-2" />
-        <div className="grid min-h-0 grid-rows-2 gap-2">
-          <NeedSupplyPanel />
-          <DispatchQueue />
-        </div>
-        <InventoryPanel />
-        <TextFeed />
-        <CameraGrid />
+      <main className="grid min-h-0 flex-1 grid-cols-1 gap-2 lg:grid-cols-[repeat(3,minmax(0,1fr))] lg:grid-rows-[3fr_2fr]">
+        {loaded ? (
+          <>
+            <MapPanel className="min-h-[360px] lg:col-span-2" />
+            <div className="grid min-h-0 min-w-0 gap-2 lg:grid-rows-[1.15fr_1fr]">
+              <NeedSupplyPanel />
+              <DispatchQueue />
+            </div>
+            <InventoryPanel />
+            <TextFeed />
+            <CameraGrid />
+          </>
+        ) : (
+          <>
+            <Skeleton className="min-h-[360px] lg:col-span-2" />
+            <div className="grid gap-2 lg:grid-rows-2">
+              <Skeleton className="min-h-[160px]" />
+              <Skeleton className="min-h-[160px]" />
+            </div>
+            <Skeleton className="min-h-[200px]" />
+            <Skeleton className="min-h-[200px]" />
+            <Skeleton className="min-h-[200px]" />
+          </>
+        )}
       </main>
     </div>
   )

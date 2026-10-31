@@ -15,18 +15,18 @@ const GROUPS: { status: DispatchStatus; label: string }[] = [
 ]
 
 const STATUS_CLASS: Record<DispatchStatus, string> = {
-  suggested: 'border-sky-300 bg-sky-50',
-  pending: 'border-amber-300 bg-amber-50',
-  en_route: 'border-blue-300 bg-white',
-  delivered: 'border-slate-200 bg-white text-slate-500',
-  cancelled: 'border-slate-200 bg-white text-slate-400 line-through',
+  suggested: 'border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-950',
+  pending: 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/50',
+  en_route: 'border-blue-300 dark:border-blue-700 bg-white dark:bg-slate-900',
+  delivered: 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400',
+  cancelled: 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-400 line-through',
 }
 
 function Button({ onClick, children, variant }: { onClick: () => void; children: string; variant: 'primary' | 'plain' }) {
   const cls =
     variant === 'primary'
       ? 'bg-green-600 text-white hover:bg-green-700'
-      : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+      : 'border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700'
   return (
     <button type="button" onClick={onClick} className={`rounded px-2 py-0.5 text-xs font-medium ${cls}`}>
       {children}
@@ -66,7 +66,7 @@ export function DispatchQueue() {
           if (items.length === 0) return null
           return (
             <section key={status}>
-              <h3 className="mb-1 text-xs font-semibold uppercase text-slate-500">
+              <h3 className="mb-1 text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
                 {label} ({items.length})
               </h3>
               <ul className="space-y-1">
@@ -83,7 +83,7 @@ export function DispatchQueue() {
                         {nameOf(d.from_site)} → {nameOf(d.to_site)}
                       </span>
                       {d.eta_minutes !== undefined && d.status !== 'delivered' && d.status !== 'cancelled' && (
-                        <span className="whitespace-nowrap text-slate-500">ETA {d.eta_minutes} min</span>
+                        <span className="whitespace-nowrap text-slate-500 dark:text-slate-400">ETA {d.eta_minutes} min</span>
                       )}
                     </div>
                     <div className="mt-0.5 flex items-center justify-between gap-2">
