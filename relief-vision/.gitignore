@@ -3,5 +3,10 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 *.pt
-events.jsonl
+events*.jsonl
 outbox.sqlite
+out/
+heatmap/
+calib*.json
+*.mov
+*.mp4
