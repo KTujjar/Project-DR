@@ -181,6 +181,8 @@ class CameraWorker(threading.Thread):
         frame_gap = 1.0 / fps if fps and fps > 0 else 0.0
         while not self._stop_event.is_set():
             ok, frame = src.read()
+            if ok and frame is None:
+                continue  # push source: connected, no new frame yet
             if not ok or frame is None:
                 if not self.cfg.is_file:
                     log.warning("%s: lost feed, reconnecting", self.cfg.camera_id)

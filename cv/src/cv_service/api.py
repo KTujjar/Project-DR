@@ -1,16 +1,19 @@
 """HTTP API the dashboard (or the team backend) polls."""
 
+from importlib.resources import files
 from typing import Iterator, Mapping, Protocol
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 
 from .config import Settings
+from .push_source import PushSource
 from .state import Store
 from .timeutil import parse_iso
 
 BOUNDARY = "frame"
+PHONE_PAGE = files("cv_service").joinpath("static/phone.html").read_text()
 
 
 class PassControl(Protocol):
@@ -21,8 +24,14 @@ class PassControl(Protocol):
     def pass_status(self) -> dict: ...
 
 
-def create_app(store: Store, settings: Settings, passes: Mapping[str, PassControl] | None = None) -> FastAPI:
+def create_app(
+    store: Store,
+    settings: Settings,
+    passes: Mapping[str, PassControl] | None = None,
+    push_sources: Mapping[str, PushSource] | None = None,
+) -> FastAPI:
     passes = passes or {}
+    push_sources = push_sources or {}
     app = FastAPI(title="Project-DR CV service")
     app.add_middleware(CORSMiddleware, allow_origins=list(settings.cors_origins), allow_methods=["GET", "POST"])
 
@@ -87,5 +96,28 @@ def create_app(store: Store, settings: Settings, passes: Mapping[str, PassContro
                 yield b"--" + BOUNDARY.encode() + b"\r\nContent-Type: image/jpeg\r\n\r\n" + jpeg + b"\r\n"
 
         return StreamingResponse(frames(), media_type=f"multipart/x-mixed-replace; boundary={BOUNDARY}")
+
+    # --- phone camera: the page captures frames and sends them here (phone -> laptop) ---
+
+    @app.get("/phone", response_class=HTMLResponse)
+    def phone_page() -> str:
+        return PHONE_PAGE
+
+    @app.get("/api/push-cameras")
+    def push_cameras() -> list[str]:
+        return list(push_sources)
+
+    @app.websocket("/api/cameras/{camera_id}/push")
+    async def push(ws: WebSocket, camera_id: str) -> None:
+        source = push_sources.get(camera_id)
+        if source is None:
+            await ws.close(code=1008, reason=f"{camera_id} is not a push camera")
+            return
+        await ws.accept()
+        try:
+            while True:
+                source.push_jpeg(await ws.receive_bytes())
+        except WebSocketDisconnect:
+            pass
 
     return app

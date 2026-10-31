@@ -5,17 +5,23 @@ from typing import Mapping
 
 import yaml
 
+PUSH_SOURCE = "push"
+
 
 @dataclass(frozen=True)
 class CameraConfig:
     camera_id: str
     site_id: str
-    source: int | str  # webcam index, stream URL, or video file path
+    source: int | str  # webcam index, stream URL, video file path, or "push" (phone page sends frames)
     loop: bool = True
 
     @property
+    def is_push(self) -> bool:
+        return self.source == PUSH_SOURCE
+
+    @property
     def is_file(self) -> bool:
-        return isinstance(self.source, str) and "://" not in self.source
+        return isinstance(self.source, str) and "://" not in self.source and not self.is_push
 
 
 @dataclass(frozen=True)

@@ -8,9 +8,10 @@ import uvicorn
 from dotenv import load_dotenv
 
 from .api import create_app
-from .camera_worker import CameraWorker, authorize_webcams
+from .camera_worker import CameraWorker, authorize_webcams, open_capture
 from .config import load_settings
 from .detector import YoloPersonTracker
+from .push_source import PushSource
 from .state import Store
 
 log = logging.getLogger("cv_service")
@@ -23,6 +24,8 @@ def main() -> None:
 
     authorize_webcams(settings.cameras)
     store = Store(settings.cameras, history_s=settings.history_s)
+    # Frames for "push" cameras arrive from the /phone page instead of being opened locally.
+    push_sources = {cam.camera_id: PushSource() for cam in settings.cameras if cam.is_push}
     workers = [
         CameraWorker(
             cam,
@@ -33,12 +36,15 @@ def main() -> None:
             infer_every_s=settings.infer_every_s,
             min_track_hits=settings.min_track_hits,
             pass_gap_s=settings.pass_gap_s,
+            open_source=(lambda _cfg, src=push_sources[cam.camera_id]: src) if cam.is_push else open_capture,
         )
         for cam in settings.cameras
     ]
     log.info("YOLO %s tracking %d camera(s)", settings.model, len(workers))
+    if push_sources:
+        log.info("Phone camera page: %s/phone (use the https tailscale serve address on iPhone)", settings.public_url)
 
-    app = create_app(store, settings, {w.cfg.camera_id: w for w in workers})
+    app = create_app(store, settings, {w.cfg.camera_id: w for w in workers}, push_sources)
 
     @asynccontextmanager
     async def lifespan(_app):

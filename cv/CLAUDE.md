@@ -31,5 +31,8 @@ uv run cv-service          # run the service (reads .env and cameras.yaml)
 | POST | `/api/cameras/{id}/pass/start` | Starts a pass along the line |
 | POST | `/api/cameras/{id}/pass/end` | Ends the pass and publishes its total |
 | GET | `/api/cameras/{id}/pass` | Pass status |
+| GET | `/phone` | Phone camera page (Safari; needs https via `tailscale serve`) |
+| GET | `/api/push-cameras` | Camera ids with `source: push` |
+| WS | `/api/cameras/{id}/push` | Phone page sends JPEG frames here |
 | GET | `/api/cameras/{id}/snapshot.jpg` | Latest annotated frame |
 | GET | `/api/cameras/{id}/stream.mjpg` | Live MJPEG stream |

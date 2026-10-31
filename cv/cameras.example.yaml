@@ -1,5 +1,6 @@
 # One entry per camera. camera_id/site_id must match the dashboard's locations.
-# source: a webcam index (0 = built-in camera), an rtsp:// or http:// URL, or a video file path.
+# source: a webcam index (0 = built-in camera), an rtsp:// or http:// URL, a video file path,
+#         or "push" (an iPhone sends frames from the /phone page; see README).
 # loop: replay video files from the start when they end (ignored for live sources).
 cameras:
   - camera_id: cam_s3

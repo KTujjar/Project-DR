@@ -37,11 +37,22 @@ Each entry in `cameras.yaml` maps one feed to a dashboard site:
 cameras:
   - camera_id: cam_s3      # must match the dashboard's camera ids
     site_id: shelter_3     # must match a dashboard location id
-    source: 0              # webcam index, rtsp:// or http:// URL, or a video file path
+    source: 0              # webcam index, rtsp:// or http:// URL, video file path, or push (phone page)
     loop: true             # replay video files when they end
 ```
 
 The mock dashboard uses `cam_s1` to `cam_s4` for `shelter_1` to `shelter_4`. A CV camera with the same id replaces that mock camera; the others keep mock data.
+
+### iPhone camera via the phone page (no app needed)
+
+When the phone can't accept incoming connections (for example on campus Wi-Fi), let it send video to the laptop instead:
+
+1. Add a camera with `source: push` to `cameras.yaml` and start the service.
+2. Install Tailscale on the laptop and phone (same account). In the admin console (login.tailscale.com → DNS), enable MagicDNS and HTTPS Certificates.
+3. On the laptop, run `tailscale serve --bg 8001`. This gives the service an `https://<laptop>.<tailnet>.ts.net` address. Safari only allows camera access over https.
+4. On the iPhone, open `https://<laptop>.<tailnet>.ts.net/phone` in Safari, pick the camera, tap **Start camera**, and use **Start pass** / **End pass** while walking the line.
+
+The page sends about 10 JPEG frames per second over a WebSocket (`/api/cameras/{id}/push`) and drops frames rather than lagging when the network is slow.
 
 For the TurtleBot3, publish its camera as an MJPEG stream from the Pi, for example with ROS `web_video_server` (`source: http://<pi-ip>:8080/stream?topic=/camera/image_raw`). For an iPhone, use any IP-camera app and put its stream URL in `source`. The ROS node (or a shortcut on the phone) then calls the `pass/start` and `pass/end` endpoints at each end of the line:
 
