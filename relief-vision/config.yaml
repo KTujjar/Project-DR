@@ -1,0 +1,31 @@
+# Copy/edit. Anything omitted falls back to the defaults in reliefvision/config.py.
+site_id: demo-site
+process_fps: 8          # frames analysed per second (5-10 is plenty)
+emit_interval_s: 2.0    # one Event per camera every N seconds
+device: null            # null = auto; or "cpu", "cuda:0", "mps"
+
+person:
+  weights: yolo11n.pt   # try yolo11s.pt / yolo11m.pt for accuracy, raise imgsz to 960 for small/far people
+  conf: 0.35
+  imgsz: 640
+
+aids:                   # wheelchairs / walkers / crutches / canes / strollers (open-vocabulary, noisy)
+  enabled: true
+  weights: yolov8s-worldv2.pt
+  conf: 0.25
+  interval_s: 1.5
+
+grid: {rows: 6, cols: 8, cell_capacity: 3}   # cell_capacity = people that make one grid cell "full"
+
+events:
+  jsonl: events.jsonl
+  webhook: null         # e.g. http://localhost:8000/events  (buffered in outbox.sqlite if offline)
+
+cameras:
+  - id: cam1
+    source: 0                      # 0 = webcam | file.mp4 | rtsp://... | ros2:/camera/image_raw/compressed?odom=/odom
+    mode: auto                     # auto | fixed | mobile
+  # - id: robot
+  #   source: "ros2:/camera/image_raw/compressed?odom=/odom"
+  #   mode: auto
+  #   pose: east-gate              # optional label copied into every event

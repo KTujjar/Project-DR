@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reliefvision"
+version = "0.1.0"
+description = "Aggregate-only crowd statistics from camera video for disaster-relief coordination"
+requires-python = ">=3.9"
+dependencies = [
+  "numpy",
+  "opencv-python",
+  "supervision>=0.25",
+  "trackers>=2.0",
+  "ultralytics>=8.3",
+  "pydantic>=2",
+  "pyyaml",
+]
+
+[project.optional-dependencies]
+server = ["fastapi", "uvicorn"]
+
+[project.scripts]
+reliefvision = "reliefvision.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["reliefvision*"]

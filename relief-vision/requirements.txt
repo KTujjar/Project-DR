@@ -1,0 +1,11 @@
+# Pin exact versions once you have a working install (pip freeze > requirements.lock).
+numpy
+opencv-python
+supervision>=0.25
+trackers>=2.0          # ByteTrack (moved out of supervision)
+ultralytics>=8.3
+pydantic>=2
+pyyaml
+# optional, for mock_receiver.py
+# fastapi
+# uvicorn
