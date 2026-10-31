@@ -3,6 +3,7 @@ import { DispatchQueue } from './components/DispatchQueue/DispatchQueue'
 import { MapPanel } from './components/MapPanel/MapPanel'
 import { NeedSupplyPanel } from './components/NeedSupplyPanel/NeedSupplyPanel'
 import { Panel } from './components/Panel'
+import { TextFeed } from './components/TextFeed/TextFeed'
 import { useDashboardStore } from './store/useDashboardStore'
 
 function Placeholder({ label }: { label: string }) {
@@ -33,9 +34,7 @@ export default function App() {
         <Panel title="Inventory">
           <Placeholder label="Inventory" />
         </Panel>
-        <Panel title="Text Feed">
-          <Placeholder label="Text feed" />
-        </Panel>
+        <TextFeed />
         <Panel title="Cameras">
           <Placeholder label="Cameras" />
         </Panel>
