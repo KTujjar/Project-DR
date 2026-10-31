@@ -5,6 +5,7 @@
     GET  /api/people-counts?since=<iso>     PeopleCount[] (latest per camera without `since`)
     POST /api/cameras/{id}/pass/start|end   start / finish a pass along the line
     GET  /api/cameras/{id}/pass             pass status
+    GET  /api/cameras/{id}/stats            latest crowd-metrics Event (null until the first one)
     GET  /phone                             iPhone camera page (Safari, needs https)
     WS   /api/cameras/{id}/push             the phone page sends JPEG frames here
     GET  /api/cameras/{id}/snapshot.jpg     only with --serve-video
@@ -14,13 +15,14 @@ from __future__ import annotations
 
 import threading
 from importlib.resources import files
-from typing import Iterator, Mapping, Optional, Sequence
+from typing import Callable, Iterator, Mapping, Optional, Sequence
 
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 
 from .dashboard import DashboardBridge, DashboardState, parse_iso
+from .schema import Event
 from .sources import PushSource
 
 BOUNDARY = "frame"
@@ -28,8 +30,11 @@ BOUNDARY = "frame"
 
 def create_app(state: DashboardState, bridges: Mapping[str, DashboardBridge],
                push_sources: Optional[Mapping[str, PushSource]] = None,
-               cors_origins: Sequence[str] = ("http://localhost:5173", "http://127.0.0.1:5173")) -> FastAPI:
+               cors_origins: Sequence[str] = ("http://localhost:5173", "http://127.0.0.1:5173"),
+               crowd_events: Optional[Mapping[str, Callable[[], Optional[Event]]]] = None) -> FastAPI:
+    """`crowd_events` maps camera id -> a getter for that camera's latest Event (CameraWorker.last_event)."""
     push_sources = push_sources or {}
+    crowd_events = crowd_events or {}
     phone_page = files("reliefvision").joinpath("static/phone.html").read_text()
     app = FastAPI(title="reliefvision dashboard API")
     app.add_middleware(CORSMiddleware, allow_origins=list(cors_origins), allow_methods=["GET", "POST"])
@@ -68,6 +73,14 @@ def create_app(state: DashboardState, bridges: Mapping[str, DashboardBridge],
     @app.get("/api/cameras/{camera_id}/pass")
     def pass_status(camera_id: str) -> dict:
         return bridge(camera_id).pass_status()
+
+    # Full crowd metrics for one camera: its latest Event (aggregate only, like the events output).
+    @app.get("/api/cameras/{camera_id}/stats")
+    def stats(camera_id: str) -> JSONResponse:
+        if camera_id not in crowd_events:
+            raise HTTPException(404, f"no crowd stats for camera {camera_id}")
+        ev = crowd_events[camera_id]()
+        return JSONResponse(None if ev is None else ev.model_dump(mode="json"))
 
     # --- phone camera: the page captures frames and sends them here (phone -> laptop) ---
     @app.get("/phone", response_class=HTMLResponse)

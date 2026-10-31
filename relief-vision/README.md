@@ -79,6 +79,7 @@ A pass also ends after `pass.gap_s` (5 s) with nobody in view, and a camera that
 | GET | `/api/people-counts?since=<ISO 8601>` | `PeopleCount[]` (latest per camera without `since`) |
 | POST | `/api/cameras/{id}/pass/start`, `/pass/end` | start / finish a pass; returns pass status |
 | GET | `/api/cameras/{id}/pass` | `{in_pass, running_count, last_pass_count, ...}` |
+| GET | `/api/cameras/{id}/stats` | that camera's latest `Event` (all the metrics above; `null` until the first one) |
 | GET | `/phone` | iPhone camera page (see below) |
 | GET | `/api/cameras/{id}/snapshot.jpg`, `/stream.mjpg` | annotated video, **only with `--serve-video`** |
 

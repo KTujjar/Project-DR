@@ -35,24 +35,32 @@ def authorize_webcams(cameras) -> None:
             cap.release()
 
 
-def start_dashboard(cfg):
-    """Starts the dashboard API (--serve); returns per-camera bridges and phone push sources."""
+def prepare_dashboard(cfg):
+    """Dashboard pieces (--serve) the camera workers need: state, per-camera bridges, phone push sources."""
     from .dashboard import DashboardBridge, DashboardState
-    from .server import create_app, run_in_thread
     from .sources import PushSource
 
-    srv, cams = cfg["server"], cfg["cameras"]
+    cams = cfg["cameras"]
     site = lambda c: c.get("site_id", cfg["site_id"])  # noqa: E731
-    state = DashboardState([(c["id"], site(c)) for c in cams], public_url=srv["public_url"], video=srv["video"])
+    state = DashboardState([(c["id"], site(c)) for c in cams], public_url=cfg["server"]["public_url"],
+                           video=cfg["server"]["video"])
     bridges = {c["id"]: DashboardBridge(c["id"], site(c), state, conf=cfg["person"]["conf"],
                                         min_track_hits=cfg["pass"]["min_track_hits"], pass_gap_s=cfg["pass"]["gap_s"])
                for c in cams}
     push_sources = {c["id"]: PushSource(cfg["process_fps"]) for c in cams if str(c["source"]) == "push"}
-    run_in_thread(create_app(state, bridges, push_sources, srv["cors_origins"]), srv["host"], srv["port"])
+    return state, bridges, push_sources
+
+
+def serve_dashboard(cfg, state, bridges, push_sources, workers) -> None:
+    """Starts the dashboard API in a background thread once the workers exist."""
+    from .server import create_app, run_in_thread
+
+    srv = cfg["server"]
+    crowd_events = {w.cam["id"]: (lambda w=w: w.last_event) for w in workers}
+    run_in_thread(create_app(state, bridges, push_sources, srv["cors_origins"], crowd_events), srv["host"], srv["port"])
     print(f"[reliefvision] dashboard API on http://{srv['host']}:{srv['port']}"
           + (" (with video)" if srv["video"] else " (counts only; --serve-video to stream frames)")
           + (f". Phone page: {srv['public_url']}/phone" if push_sources else ""))
-    return bridges, push_sources
 
 
 def main(argv=None) -> int:
@@ -128,10 +136,12 @@ def main(argv=None) -> int:
     authorize_webcams(cfg["cameras"])
     person, aid = build_detectors(cfg)
     sink = EventSink(cfg["events"]["jsonl"], cfg["events"]["webhook"], cfg["events"]["outbox_db"])
-    bridges, push_sources = start_dashboard(cfg) if srv["enabled"] else ({}, {})
+    state, bridges, push_sources = prepare_dashboard(cfg) if srv["enabled"] else (None, {}, {})
     workers = [CameraWorker(c, cfg, person, aid, sink, args.save_video, args.max_frames,
                             source=push_sources.get(c["id"]), observer=bridges.get(c["id"]))
                for c in cfg["cameras"]]
+    if srv["enabled"]:
+        serve_dashboard(cfg, state, bridges, push_sources, workers)
     for w in workers:
         w.start()
     print(f"[reliefvision] {len(workers)} camera(s) running. Events -> {cfg['events']['jsonl']}"

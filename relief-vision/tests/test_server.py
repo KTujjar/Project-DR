@@ -77,3 +77,35 @@ def test_no_frames_leave_without_video():
 def test_cors_allows_vite_dev_server(client):
     res = client.get("/api/cameras", headers={"Origin": "http://localhost:5173"})
     assert res.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
+def crowd_event(**over):
+    from reliefvision.schema import Event
+
+    base = dict(site_id="shelter_3", camera_id="cam_s3", ts=1_793_400_000.0, camera_mode="fixed", people=12,
+                people_is_lower_bound=True, density="high", crowd_fraction=0.21, children_est=2,
+                mobility_aids={"wheelchair": 1, "walker": 0, "crutches": 0, "cane": 0, "stroller": 0},
+                grid_rows=2, grid_cols=2, crowd_grid=[[0.1, 1.2], [0.0, 0.4]],
+                hotspots=[{"region": "top-right", "row": 0, "col": 1, "score": 0.9}],
+                insights=[{"level": "warn", "code": "hotspot", "message": "Crowded top-right"}])
+    base.update(over)
+    return Event(**base)
+
+
+def stats_client(latest):
+    state = DashboardState(CAMS)  # video off: stats are aggregate, so they don't need --serve-video
+    return TestClient(create_app(state, {}, crowd_events={"cam_s3": lambda: latest}))
+
+
+def test_stats_returns_latest_event():
+    body = stats_client(crowd_event()).get("/api/cameras/cam_s3/stats").json()
+    assert body["schema_version"] == "0.1" and body["people"] == 12 and body["people_is_lower_bound"]
+    assert body["mobility_aids"]["wheelchair"] == 1 and body["hotspots"][0]["region"] == "top-right"
+    assert body["insights"][0]["level"] == "warn"
+
+
+def test_stats_null_before_first_event_and_404_for_unknown():
+    c = stats_client(None)
+    res = c.get("/api/cameras/cam_s3/stats")
+    assert res.status_code == 200 and res.json() is None
+    assert c.get("/api/cameras/cam_s4/stats").status_code == 404
