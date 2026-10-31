@@ -1,6 +1,8 @@
-# reliefvision for the TurtleBot3 camera, used by ../start-with-robot.sh.
+# reliefvision for the dashboard's three real cameras, used by ../start-with-robot.sh:
+# the TurtleBot3 camera, this Mac's webcam and the iPhone /phone page.
 # Run on the Mac that is connected to the robot, after the robot's Mission Control is up
 # (./scripts/start.sh in the rescue-bot folder). Anything omitted falls back to reliefvision/config.py.
+# Each camera counts its own shelter; a real camera replaces that shelter's simulated headcount.
 process_fps: 8
 
 aids:
@@ -8,16 +10,24 @@ aids:
 
 overlay:
   heat: recent          # heat layer on the dashboard video
-  heat_follow: true     # keep heat on the floor while the robot drives (--follow-camera)
+  heat_follow: true     # keep heat on the floor while the robot or phone moves (--follow-camera)
 
 server:                 # coordinator-dashboard API on http://localhost:8001
   enabled: true
-  video: true           # stream the annotated robot video to the dashboard tile
+  video: true           # stream the annotated video to the dashboard tiles
 
 cameras:
   - id: cam_robot
-    site_id: shelter_3  # which dashboard site the robot is counting; change as needed
+    site_id: shelter_3  # Lebanon Middle School
     source: "turtlebot:http://127.0.0.1:8872"
     # Token: $TURTBOT_MODEL_TOKEN_FILE (set by start-with-robot.sh to
     # <rescue-bot folder>/.robot/runtime/service.token). Never commit it.
+    mode: auto
+  - id: cam_laptop
+    site_id: shelter_1  # Hanover High School
+    source: 0           # this Mac's built-in camera (macOS asks for camera access the first time)
+    mode: auto
+  - id: cam_phone
+    site_id: shelter_2  # Leverone Field House
+    source: push        # iPhone sends frames from the /phone page (needs `tailscale serve --bg 8001`)
     mode: auto

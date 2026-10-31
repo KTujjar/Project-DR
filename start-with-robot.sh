@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shows the TurtleBot3 camera on the coordinator dashboard.
+# Shows the TurtleBot3 camera, this Mac's webcam and the iPhone /phone camera on the dashboard.
 #
 # Run on the Mac connected to the robot, from a checkout of `main` that is SEPARATE from the
 # rescue-bot folder (don't switch the rescue-bot folder to main: its robot software would vanish).
@@ -59,5 +59,5 @@ RV_PID=$!
 trap 'kill $RV_PID 2>/dev/null || true' EXIT INT TERM
 
 cd "$ROOT/dashboard"
-echo "Dashboard: http://localhost:5173  (robot camera tile: cam_robot)"
+echo "Dashboard: http://localhost:5173  (camera tiles: cam_robot, cam_laptop, cam_phone)"
 npm run dev -- --port 5173

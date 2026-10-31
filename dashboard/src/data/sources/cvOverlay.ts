@@ -5,14 +5,21 @@ interface CvData {
   peopleCounts: PeopleCount[]
 }
 
-// Replaces cameras and people counts with live ones from the CV service (cv/ on Khaled-cv);
-// everything else comes from the base source. Cameras the CV doesn't own keep their base data.
+// Adds live cameras and people counts from the CV service (relief-vision/); everything else
+// comes from the base source. Once a real camera has counted people at a shelter, it owns that
+// shelter's headcount: the base source's counts there (e.g. the mock's simulated ones) are dropped
+// so they aren't added on top. A camera that hasn't reported yet (phone not connected) leaves
+// the simulated count in place.
 export function mergeCv(base: DashboardSnapshot, cv: CvData): DashboardSnapshot {
   const cvIds = new Set(cv.cameras.map((c) => c.camera_id))
+  const cvSites = new Set(cv.peopleCounts.map((p) => p.site_id))
   return {
     ...base,
     cameras: [...base.cameras.filter((c) => !cvIds.has(c.camera_id)), ...cv.cameras],
-    peopleCounts: [...base.peopleCounts.filter((p) => !cvIds.has(p.camera_id)), ...cv.peopleCounts],
+    peopleCounts: [
+      ...base.peopleCounts.filter((p) => !cvIds.has(p.camera_id) && !cvSites.has(p.site_id)),
+      ...cv.peopleCounts,
+    ],
   }
 }
 

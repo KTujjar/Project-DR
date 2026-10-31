@@ -1,0 +1,26 @@
+# reliefvision for the dashboard without the robot: this Mac's webcam and the iPhone /phone page.
+#   reliefvision --config config.dashboard.yaml
+# (On the Mac connected to the robot use ../start-with-robot.sh, which also adds the robot camera.)
+# Each camera counts its own shelter; a real camera replaces that shelter's simulated headcount.
+process_fps: 8
+
+aids:
+  enabled: false        # wheelchair/walker detector: big first download; set true if wanted
+
+overlay:
+  heat: recent
+  heat_follow: true     # keep heat on the floor while the phone moves
+
+server:                 # coordinator-dashboard API on http://localhost:8001
+  enabled: true
+  video: true
+
+cameras:
+  - id: cam_laptop
+    site_id: shelter_1  # Hanover High School
+    source: 0
+    mode: auto
+  - id: cam_phone
+    site_id: shelter_2  # Leverone Field House
+    source: push        # iPhone /phone page (needs `tailscale serve --bg 8001`, see README)
+    mode: auto
