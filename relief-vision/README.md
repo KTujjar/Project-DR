@@ -2,7 +2,7 @@
 
 Video module for disaster-relief coordination. Turns camera video (file, webcam, phone/RTSP, TurtleBot via ROS 2) into **aggregate** crowd statistics and sends them as small JSON events to your platform.
 
-**Privacy by design:** no face recognition, no identities, no stored frames. Only counts and grid statistics leave the module (track IDs are used internally to measure movement and are never emitted).
+**Privacy by design:** no face recognition, no identities, no stored frames. Only counts and grid statistics leave the module (track IDs are used internally to measure movement and are never emitted). The one exception is opt-in: `--serve-video` streams annotated video to the coordinator dashboard (see [Dashboard API](#dashboard-api---serve)).
 
 ## Quick start
 
@@ -51,6 +51,43 @@ reliefvision --source crowd.mp4 --webhook http://localhost:8000/events
 
 If the network drops, events queue in a local SQLite outbox (`outbox.sqlite`, max 5000) and are delivered oldest-first when it returns. A JSONL copy is always written to `events.jsonl`.
 
+## Dashboard API (`--serve`)
+
+`--serve` adds a small HTTP API for the Project-DR coordinator dashboard, next to the normal events (which keep working as before). Without `--serve`, nothing extra runs.
+
+```bash
+pip install -e ".[server]"
+reliefvision --config config.yaml --serve                 # counts + camera status on :8001
+reliefvision --config config.yaml --serve --serve-video   # ... plus live annotated video
+```
+
+Give each camera the dashboard's ids: `id: cam_s3` and `site_id: shelter_3` (per-camera `site_id` overrides the top-level one). Point the dashboard at it with `VITE_CV_API_URL=http://localhost:8001`.
+
+**Counting people in a line.** The dashboard count is the number of unique people seen in one *pass*: a TurtleBot (or someone with a phone) moves along the line, every tracked person is counted once even after they leave the frame, and when the pass ends its total replaces the previous one (so it can go down). Passes are controlled by the robot or operator:
+
+```bash
+curl -X POST http://<laptop>:8001/api/cameras/cam_s3/pass/start   # at one end of the line
+curl -X POST http://<laptop>:8001/api/cameras/cam_s3/pass/end     # at the other end
+```
+
+A pass also ends after `pass.gap_s` (5 s) with nobody in view, and a camera that never calls `start` begins passes on its own when people appear. A person must be tracked in `pass.min_track_hits` (3) frames to count. If the tracker loses someone (for example behind another person) it can give them a new ID and count them twice; raise `min_track_hits` and keep the camera steady and side-on to reduce this.
+
+| Method | Path | Returns |
+|---|---|---|
+| GET | `/health` | `{ok, cameras_online}` |
+| GET | `/api/cameras` | `CameraFeed[]` (video links only with `--serve-video`) |
+| GET | `/api/people-counts?since=<ISO 8601>` | `PeopleCount[]` (latest per camera without `since`) |
+| POST | `/api/cameras/{id}/pass/start`, `/pass/end` | start / finish a pass; returns pass status |
+| GET | `/api/cameras/{id}/pass` | `{in_pass, running_count, last_pass_count, ...}` |
+| GET | `/phone` | iPhone camera page (see below) |
+| GET | `/api/cameras/{id}/snapshot.jpg`, `/stream.mjpg` | annotated video, **only with `--serve-video`** |
+
+`PeopleCount` and `CameraFeed` (`reliefvision/dashboard.py`) are the dashboard's shared contracts; `tests/test_contract.py` pins their fields.
+
+**iPhone camera without an app (`source: push`).** When the phone can't accept incoming connections (campus Wi-Fi, iOS Local Network rules), it sends video to the laptop instead. Add a camera with `source: push`, run with `--serve`, and open `https://<laptop>.<tailnet>.ts.net/phone` in Safari on the phone. Safari only allows the camera over https; with [Tailscale](https://tailscale.com) on both devices, enable HTTPS certificates in the admin console and run `tailscale serve --bg 8001` on the laptop. The page streams about 10 frames/s and has Start pass / End pass buttons.
+
+**Privacy.** Without `--serve-video`, only counts and camera status leave the module, as with events. With it, annotated frames (boxes, overlay) are streamed to whoever can reach the port; frames are still never stored.
+
 ## Tuning (per camera!)
 
 - **Density thresholds** (`metrics.density_thresholds`) are fractions of the frame covered by people, so they depend on camera distance. A close-up of 4 people reads "high". Adjust once per camera setup.
@@ -79,5 +116,6 @@ Verified in a sandbox: metrics on synthetic scenes (`selftest.py`: counts, child
 ```
 reliefvision/  sources.py (file/webcam/RTSP/ROS2) · detector.py · camera_motion.py · metrics.py
                overlay.py · events.py · pipeline.py · schema.py · config.py · cli.py
-selftest.py · mock_receiver.py · config.yaml
+               dashboard API (--serve): passcount.py · dashboard.py · server.py · static/phone.html
+selftest.py · mock_receiver.py · config.yaml · tests/ (pytest: pip install -e ".[server,dev]")
 ```
