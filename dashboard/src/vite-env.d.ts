@@ -4,6 +4,8 @@ interface ImportMetaEnv {
   readonly VITE_DATA_SOURCE?: 'mock' | 'api'
   readonly VITE_API_BASE_URL?: string
   readonly VITE_CV_API_URL?: string
+  readonly VITE_TEXT_SOURCE?: 'relay' | 'snapshot'
+  readonly VITE_TEXT_API_BASE_URL?: string
 }
 
 interface ImportMeta {

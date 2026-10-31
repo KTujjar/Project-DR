@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Issue } from '../../logic/priority'
 import { staleSources } from '../../logic/stale'
 import { useDashboardStore } from '../../store/useDashboardStore'
+import { useCommunityStore } from '../../store/useCommunityStore'
 
 const NO_ISSUES: Issue[] = []
 const TOP_N = 3
@@ -31,6 +32,10 @@ export function AlertsBar() {
   const selectSite = useDashboardStore((s) => s.selectSite)
   const selectedSiteId = useDashboardStore((s) => s.selectedSiteId)
   const now = useNow()
+  const communityItems = useCommunityStore((s) => s.items)
+  const communityError = useCommunityStore((s) => s.error)
+  const selectConversation = useCommunityStore((s) => s.select)
+  const pendingTexts = communityItems.filter((item) => !item.reply_sent_at)
   const selectedName = snapshot?.locations.find((l) => l.id === selectedSiteId)?.name
 
   const top = priorities.slice(0, TOP_N)
@@ -77,6 +82,13 @@ export function AlertsBar() {
         </ol>
 
         <div className="flex items-center gap-3 whitespace-nowrap text-xs">
+          {(import.meta.env.VITE_TEXT_SOURCE ?? 'relay') === 'relay' && (
+            <button type="button" title={communityError || 'Open a community message awaiting review'}
+              onClick={() => pendingTexts[0] && selectConversation(pendingTexts[0].conversation_id)}
+              className={`rounded px-2 py-1 ${communityError ? 'bg-red-900 text-red-100' : pendingTexts.length ? 'bg-amber-400 font-semibold text-slate-900' : 'text-slate-400'}`}>
+              {communityError ? 'Text inbox offline' : `${pendingTexts.length} texts to review`}
+            </button>
+          )}
           {selectedName && (
             <button
               type="button"
