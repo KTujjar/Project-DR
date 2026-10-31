@@ -66,7 +66,7 @@ Do this on **the Mac connected to the robot** (by Ethernet).
    ./start-with-robot.sh /path/to/rescue-bot-folder
    ```
    Set up the app dependencies first, as for `./start.sh`. The first vision run downloads a small person-detection model (about 5 MB).
-4. Open **http://localhost:5173**. The dashboard shows only the three real cameras. Click a tile for live video, heat map, crowd metrics, and **Start pass** / **End pass** for counting people along a line:
+4. Open **http://localhost:5173**. The dashboard shows only the three real cameras. Click a tile for live video, crowd metrics, and **Start pass** / **End pass** for counting people along a line:
 
    | Tile | Camera | Counts shelter |
    |---|---|---|
