@@ -10,6 +10,28 @@ Disaster-relief coordination: a coordinator dashboard fed by camera people-count
 
 The TurtleBot3 robot software lives on the `rescue-bot` branch. Its Mission Control app runs on the Mac connected to the robot (port 8872).
 
+## Start everything together
+
+With the apps already set up, run from this folder:
+
+```bash
+./start.sh
+```
+
+This starts the text service on **8000**, computer vision with the laptop and phone cameras on **8001**, the dashboard at **http://localhost:5173**, and Tailscale Serve for the phone camera. Open the HTTPS address printed by Tailscale with `/phone` appended on your phone.
+
+**Ctrl+C stops all four services and removes the launcher's Tailscale Serve mapping.** Closing the terminal or terminating the launcher also triggers cleanup. If any service exits, the launcher stops the others. Serve runs in foreground mode so its mapping does not persist after its process exits. Tailscale itself stays connected.
+
+If you previously enabled persistent Serve with `tailscale serve --bg 8001`, turn that mapping off once with `tailscale serve --https=443 off` before using the launcher. Tailscale must already be signed in with HTTPS enabled.
+
+The launcher uses `relay-text-feature/.venv/bin/python`, `relief-vision/.venv/bin/reliefvision`, and the dashboard's installed Vite. It does not reinstall dependencies or change `.env` files. For a different existing Python or vision environment, set `TEXT_PYTHON` or `VISION_BIN` to its executable path.
+
+To include the robot camera, start Mission Control in its separate checkout, then run:
+
+```bash
+./start.sh /path/to/rescue-bot-folder
+```
+
 ## Show the TurtleBot camera on the dashboard
 
 Do this on **the Mac connected to the robot** (by Ethernet).
