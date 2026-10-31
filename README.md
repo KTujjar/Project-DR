@@ -25,16 +25,26 @@ Do this on **the Mac connected to the robot** (by Ethernet).
    ./start-with-robot.sh /path/to/rescue-bot-folder
    ```
    The first run installs dependencies and downloads a small person-detection model (about 5 MB).
-4. Open **http://localhost:5173** and click the **`cam_robot`** tile for live video, heat map, crowd metrics, and **Start pass** / **End pass** for counting people along a line.
+4. Open **http://localhost:5173**. The dashboard shows only the three real cameras. Click a tile for live video, heat map, crowd metrics, and **Start pass** / **End pass** for counting people along a line:
 
-The order doesn't matter: if the robot isn't started yet, the tile stays offline and switches on by itself once it is. The robot's people boxes also appear on Mission Control's own video. Nothing in this repo can move the robot.
+   | Tile | Camera | Counts shelter |
+   |---|---|---|
+   | `cam_robot` | TurtleBot3 camera | Lebanon Middle School (`shelter_3`) |
+   | `cam_laptop` | This Mac's built-in camera | Hanover High School (`shelter_1`) |
+   | `cam_phone` | iPhone, through the `/phone` page (see below) | Leverone Field House (`shelter_2`) |
 
-To count a different site, change `site_id` in `relief-vision/config.robot.yaml`. More detail is in `relief-vision/README.md` (section "TurtleBot3 camera").
+The order doesn't matter: if the robot isn't started yet, its tile stays offline and switches on by itself once it is. The robot's people boxes also appear on Mission Control's own video. Nothing in this repo can move the robot.
+
+**Headcounts:** a shelter with a real camera takes its headcount from that camera. Norwich Town Hall, which has no camera, keeps a simulated headcount. To change which shelter a camera counts, edit `site_id` in `relief-vision/config.robot.yaml`. More detail is in `relief-vision/README.md` (sections "TurtleBot3 camera" and "Dashboard API").
+
+**Phone camera:** with [Tailscale](https://tailscale.com) on the Mac and the iPhone, run `tailscale serve --bg 8001` on the Mac, then open `https://<mac-name>.<tailnet>.ts.net/phone` in Safari and tap **Start camera**. Safari only allows camera access over https. Turn it off afterwards with `tailscale serve --https=443 off`.
 
 ## Run without the robot
 
+The same dashboard with the laptop and phone cameras (`cam_robot` is left out):
+
 ```bash
-cd relay-text-feature && python -m uvicorn backend.main:app --port 8000           # community texts
-cd relief-vision && reliefvision --config config.yaml --serve --serve-video --heat   # cameras
+cd relay-text-feature && python -m uvicorn backend.main:app --port 8000   # community texts
+cd relief-vision && reliefvision --config config.dashboard.yaml            # laptop + phone cameras
 cd dashboard && npm run dev       # with VITE_CV_API_URL=http://localhost:8001 in dashboard/.env.local
 ```
