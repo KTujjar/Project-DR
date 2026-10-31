@@ -1,0 +1,11 @@
+# One entry per camera. camera_id/site_id must match the dashboard's locations.
+# source: a webcam index (0 = built-in camera), an rtsp:// or http:// URL, or a video file path.
+# loop: replay video files from the start when they end (ignored for live sources).
+cameras:
+  - camera_id: cam_s3
+    site_id: shelter_3
+    source: 0
+  # - camera_id: cam_s1
+  #   site_id: shelter_1
+  #   source: videos/hallway.mp4
+  #   loop: true
