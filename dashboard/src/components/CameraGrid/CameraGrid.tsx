@@ -12,10 +12,12 @@ interface TileProps {
 }
 
 function CameraView({ camera, count, siteName, large = false }: TileProps) {
+  // Prefer the live MJPEG stream (smooth video); snapshots only change on each 3 s poll.
+  const src = camera.online ? (camera.stream_url ?? camera.snapshot_url) : undefined
   return (
     <div className={`relative overflow-hidden rounded bg-slate-800 ${large ? 'aspect-video w-full' : 'h-full'} ${camera.online ? '' : 'grayscale'}`}>
-      {camera.snapshot_url && camera.online ? (
-        <img src={camera.snapshot_url} alt={`${camera.camera_id} snapshot`} className="h-full w-full object-cover" />
+      {src ? (
+        <img src={src} alt={`${camera.camera_id} feed`} className="h-full w-full object-cover" />
       ) : (
         <div className="flex h-full items-center justify-center text-3xl text-slate-600">{camera.online ? '🎥' : '⛔'}</div>
       )}
