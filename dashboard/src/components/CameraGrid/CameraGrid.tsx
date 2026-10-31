@@ -3,6 +3,10 @@ import { useDashboardStore } from '../../store/useDashboardStore'
 import type { CameraFeed, PeopleCount } from '../../types/schemas'
 import { timeAgo } from '../labels'
 import { Panel } from '../Panel'
+import { CameraStats } from './CameraStats'
+
+// Set when the CV service is connected (see cvOverlay.ts); enables per-camera crowd metrics.
+const cvUrl = import.meta.env.VITE_CV_API_URL
 
 interface TileProps {
   camera: CameraFeed
@@ -91,13 +95,21 @@ export function CameraGrid() {
           role="dialog"
           aria-label={`Camera ${enlargedCam.camera_id}`}
         >
-          <div className="w-full max-w-3xl" onClick={(e) => e.stopPropagation()}>
-            <CameraView
-              camera={enlargedCam}
-              count={latestCount(enlargedCam.camera_id)}
-              siteName={siteName(enlargedCam.site_id)}
-              large
-            />
+          <div
+            className={`max-h-full w-full overflow-auto ${cvUrl ? 'max-w-5xl' : 'max-w-3xl'}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-col gap-3 md:flex-row md:items-start">
+              <div className="min-w-0 flex-1">
+                <CameraView
+                  camera={enlargedCam}
+                  count={latestCount(enlargedCam.camera_id)}
+                  siteName={siteName(enlargedCam.site_id)}
+                  large
+                />
+              </div>
+              {cvUrl && <CameraStats key={enlargedCam.camera_id} cameraId={enlargedCam.camera_id} cvUrl={cvUrl} />}
+            </div>
             <button
               type="button"
               onClick={() => setEnlarged(null)}
