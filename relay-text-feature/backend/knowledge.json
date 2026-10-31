@@ -1,0 +1,23 @@
+{
+  "scenario": "Fictional flood-response demonstration. All locations and operating details below are invented.",
+  "entries": [
+    {
+      "id": "food-collection",
+      "title": "Food collection location",
+      "answer": "In this fictional demo, food collection is at Hanover High School. These details do not describe a real relief operation.",
+      "updated_at": "Fictional demo reference"
+    },
+    {
+      "id": "opening-hours",
+      "title": "Collection hours",
+      "answer": "The fictional collection point operates from 09:00 to 17:00 local time in this demo. These are not real operating hours.",
+      "updated_at": "Fictional demo reference"
+    },
+    {
+      "id": "delivery-process",
+      "title": "Delivery requests",
+      "answer": "Delivery requests go to a responder for review. Submitting a request does not confirm a delivery or an arrival time.",
+      "updated_at": "Fictional demo reference"
+    }
+  ]
+}
