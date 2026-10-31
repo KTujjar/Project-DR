@@ -1,0 +1,38 @@
+.venv/
+__pycache__/
+*.pyc
+.robot/
+dashboard/data/
+diagnostics/phase_a/camera-*.jpg
+diagnostics/phase_a/camera-*.png
+
+.camera-venv/
+camera/captures/
+
+.runtime/
+
+# Local environments, credentials, process state and build outputs
+.DS_Store
+.env
+.env.*
+!.env.example
+*.log
+*.pid
+wheelhouse/
+camera/capture_worker
+camera/isp_worker
+
+# Generated hardware evidence can contain camera views, notes and host details.
+# Keep the diagnostic programs and Markdown reports in version control.
+/dashboard/*.png
+/dashboard/*.jpg
+/diagnostics/**/*.json
+/diagnostics/**/*.jpg
+/diagnostics/**/*.jpeg
+/diagnostics/**/*.png
+/diagnostics/**/*.raw
+/diagnostics/**/*.rgb
+/diagnostics/**/*.bin
+/diagnostics/**/*.zip
+/diagnostics/**/*.webm
+/diagnostics/**/*.mp4
