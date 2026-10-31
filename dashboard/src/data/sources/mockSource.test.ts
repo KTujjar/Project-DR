@@ -10,8 +10,9 @@ describe('mock scenario', () => {
     expect(snap.locations.filter((l) => l.kind === 'shelter')).toHaveLength(4)
     expect(snap.locations.filter((l) => l.kind === 'depot')).toHaveLength(2)
     expect(snap.locations.filter((l) => l.kind === 'incident')).toHaveLength(1)
-    expect(snap.cameras).toHaveLength(4)
-    expect(snap.cameras.filter((c) => !c.online)).toHaveLength(1)
+    // No simulated cameras (only real CV cameras get tiles); every shelter has a simulated headcount.
+    expect(snap.cameras).toHaveLength(0)
+    expect(snap.peopleCounts.map((c) => c.site_id).sort()).toEqual(['shelter_1', 'shelter_2', 'shelter_3', 'shelter_4'])
     expect(snap.messages).toHaveLength(15)
     expect(snap.messages.some((m) => m.needs_review && m.parsed?.urgency === 'critical')).toBe(true)
     expect(snap.messages.some((m) => m.needs_review && !m.parsed)).toBe(true)
@@ -71,14 +72,19 @@ describe('mock dispatch lifecycle', () => {
 })
 
 describe('mock drift', () => {
-  it('jitters online headcounts within ±5% and leaves the offline camera alone', async () => {
-    const src = createMockSource({ seed: 7 })
+  it('jitters every simulated headcount within ±5% and keeps it fresh', async () => {
+    let now = Date.parse('2026-01-01T00:00:00Z')
+    const src = createMockSource({ seed: 7, clock: () => now })
     for (let i = 0; i < 20; i++) {
+      now += 3000
       const snap = await src.getSnapshot()
-      const s1 = snap.peopleCounts.find((c) => c.camera_id === 'cam_s1')!.people_count
+      const s1 = snap.peopleCounts.find((c) => c.camera_id === 'sim_s1')!.people_count
       expect(s1).toBeGreaterThanOrEqual(209)
       expect(s1).toBeLessThanOrEqual(231)
-      expect(snap.peopleCounts.find((c) => c.camera_id === 'cam_s4')!.people_count).toBe(90)
+      const s4 = snap.peopleCounts.find((c) => c.camera_id === 'sim_s4')!
+      expect(s4.people_count).toBeGreaterThanOrEqual(85)
+      expect(s4.people_count).toBeLessThanOrEqual(95)
+      expect(Date.parse(s4.timestamp)).toBe(now)
     }
   })
 
@@ -86,7 +92,7 @@ describe('mock drift', () => {
     const src = createMockSource({ seed: 3 })
     for (let i = 0; i < 50; i++) {
       const snap = await src.getSnapshot()
-      expect(snap.peopleCounts.find((c) => c.camera_id === 'cam_s3')!.people_count).toBeLessThanOrEqual(180)
+      expect(snap.peopleCounts.find((c) => c.camera_id === 'sim_s3')!.people_count).toBeLessThanOrEqual(180)
     }
   })
 
@@ -103,7 +109,7 @@ describe('mock drift', () => {
     const src = createMockSource({ drift: false })
     src.triggerDemoEvent()
     const snap = await src.getSnapshot()
-    expect(snap.peopleCounts.find((c) => c.camera_id === 'cam_s3')!.people_count).toBe(176)
+    expect(snap.peopleCounts.find((c) => c.camera_id === 'sim_s3')!.people_count).toBe(176)
     expect(qty(snap, 'shelter_3', 'water_L')).toBe(60)
     expect(snap.messages.at(-1)!.parsed).toMatchObject({ site_id: 'shelter_3', item: 'water_L', quantity: 60 })
   })

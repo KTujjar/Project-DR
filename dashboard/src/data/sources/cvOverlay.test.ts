@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { CameraFeed, DataSource, PeopleCount } from '../../types/schemas'
 import { createScenario } from '../mock/scenario'
-import { withCvOverlay } from './cvOverlay'
+import { mergeCv, withCvOverlay } from './cvOverlay'
 
 const CV_CAMERA: CameraFeed = {
   camera_id: 'cam_s3',
@@ -35,7 +35,7 @@ function cvFetch(ok = true) {
 }
 
 describe('withCvOverlay', () => {
-  it('replaces only the CV-owned camera and its counts', async () => {
+  it('adds the CV cameras, and a real camera replaces its shelter\'s simulated count', async () => {
     const f = cvFetch()
     const snap = await withCvOverlay(baseSource(), 'http://cv:8001/', f).getSnapshot()
 
@@ -43,10 +43,21 @@ describe('withCvOverlay', () => {
     expect(f).toHaveBeenCalledWith('http://cv:8001/api/people-counts')
     expect(snap.cameras.filter((c) => c.camera_id === 'cam_s3')).toEqual([CV_CAMERA])
     expect(snap.peopleCounts.filter((p) => p.camera_id === 'cam_s3')).toEqual([CV_COUNT])
-    // Other cameras still come from the base source.
-    expect(snap.cameras.map((c) => c.camera_id).sort()).toEqual(['cam_s1', 'cam_s2', 'cam_s3', 'cam_s4'])
-    expect(snap.peopleCounts.find((p) => p.camera_id === 'cam_s1')?.people_count).toBe(220)
+    // The mock has no cameras of its own; only the real one shows.
+    expect(snap.cameras.map((c) => c.camera_id)).toEqual(['cam_s3'])
+    // Shelter 3's simulated count is replaced by the real camera, not added to it.
+    expect(snap.peopleCounts.filter((p) => p.site_id === 'shelter_3')).toEqual([CV_COUNT])
+    // Shelters without a real camera keep their simulated counts.
+    expect(snap.peopleCounts.find((p) => p.site_id === 'shelter_1')?.people_count).toBe(220)
     expect(snap.locations).toHaveLength(7)
+  })
+
+  it('keeps the simulated count while a real camera has not reported yet', () => {
+    const phone: CameraFeed = { camera_id: 'cam_phone', site_id: 'shelter_2', online: false, last_frame_at: CV_CAMERA.last_frame_at }
+    const snap = mergeCv(createScenario(0), { cameras: [CV_CAMERA, phone], peopleCounts: [CV_COUNT] })
+    expect(snap.cameras.map((c) => c.camera_id)).toEqual(['cam_s3', 'cam_phone'])
+    expect(snap.peopleCounts.find((p) => p.site_id === 'shelter_2')?.people_count).toBe(260)   // phone not connected
+    expect(snap.peopleCounts.filter((p) => p.site_id === 'shelter_3')).toEqual([CV_COUNT])     // robot counting
   })
 
   it('keeps the last good CV data, marked offline, when the service goes down', async () => {

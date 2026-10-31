@@ -31,11 +31,13 @@ describe('scenario: derived values', () => {
     expect(s.eta_minutes).toBeGreaterThan(0)
   })
 
-  it('ranks Shelter 3, the injury text and the offline camera as the top 3 issues', () => {
+  it('ranks Shelter 3 then the injury text, with no simulated camera alerts', () => {
     const top = d.priorities.slice(0, 3)
     expect(top[0]).toMatchObject({ kind: 'shortfall', site_id: 'shelter_3' })
-    expect(top.map((i) => i.kind)).toEqual(['shortfall', 'needs_review', 'camera_offline'])
+    expect(top[1]).toMatchObject({ kind: 'needs_review' })
     expect(top[1].title).toMatch(/cut his leg/)
+    // Camera-offline alerts only come from real cameras now (see cvOverlay).
+    expect(d.priorities.some((i) => i.kind === 'camera_offline')).toBe(false)
   })
 })
 

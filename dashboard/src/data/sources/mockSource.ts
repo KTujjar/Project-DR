@@ -109,24 +109,19 @@ export function createMockSource({ clock = Date.now, seed = 42, drift = true }: 
     return state.locations.find((l) => l.id === site_id)?.capacity
   }
 
-  // Online cameras report a fresh count within ±5% of the target. Noise alone never pushes a
+  // Simulated headcounts refresh within ±5% of their target. Noise alone never pushes a
   // site over the capacity alert line; only a target above it (e.g. the demo event) does.
-  function refreshCameras() {
+  function refreshCounts() {
     const now = iso()
-    for (const cam of state.cameras) {
-      if (!cam.online) continue
-      cam.last_frame_at = now
-      for (const pc of state.peopleCounts) {
-        if (pc.camera_id !== cam.camera_id) continue
-        pc.timestamp = now
-        if (!drift) continue
-        const target = targetCounts.get(cam.camera_id) ?? pc.people_count
-        let count = Math.round(target * (1 + (rand() * 2 - 1) * HEADCOUNT_JITTER))
-        const capacity = capacityOf(cam.site_id)
-        if (capacity) count = Math.min(count, Math.max(target, Math.floor(capacity * config.capacityCriticalRatio)))
-        pc.people_count = count
-        pc.confidence = Math.round((0.82 + rand() * 0.15) * 100) / 100
-      }
+    for (const pc of state.peopleCounts) {
+      pc.timestamp = now
+      if (!drift) continue
+      const target = targetCounts.get(pc.camera_id) ?? pc.people_count
+      let count = Math.round(target * (1 + (rand() * 2 - 1) * HEADCOUNT_JITTER))
+      const capacity = capacityOf(pc.site_id)
+      if (capacity) count = Math.min(count, Math.max(target, Math.floor(capacity * config.capacityCriticalRatio)))
+      pc.people_count = count
+      pc.confidence = Math.round((0.82 + rand() * 0.15) * 100) / 100
     }
   }
 
@@ -152,7 +147,7 @@ export function createMockSource({ clock = Date.now, seed = 42, drift = true }: 
   }
 
   function tick() {
-    refreshCameras()
+    refreshCounts()
     advanceDispatches()
     if (drift) {
       consumeStock()
@@ -161,8 +156,8 @@ export function createMockSource({ clock = Date.now, seed = 42, drift = true }: 
   }
 
   function triggerDemoEvent() {
-    targetCounts.set('cam_s3', 176)
-    const pc = state.peopleCounts.find((c) => c.camera_id === 'cam_s3')
+    targetCounts.set('sim_s3', 176)
+    const pc = state.peopleCounts.find((c) => c.camera_id === 'sim_s3')
     if (pc) pc.people_count = 176
     const record = state.inventory.find((r) => r.site_id === 'shelter_3' && r.item === 'water_L')
     if (record) {

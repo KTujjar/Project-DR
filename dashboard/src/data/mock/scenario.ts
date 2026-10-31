@@ -103,17 +103,15 @@ export function createScenario(now = Date.now()): DashboardSnapshot {
       { id: 'depot_b', name: 'Depot B (West Lebanon)', kind: 'depot', lat: 43.645, lng: -72.31 },
       { id: 'incident_1', name: 'Mink Brook Flood Zone', kind: 'incident', lat: 43.69, lng: -72.278 },
     ],
-    cameras: [
-      { camera_id: 'cam_s1', site_id: 'shelter_1', online: true, last_frame_at: minutesAgo(now, 0) },
-      { camera_id: 'cam_s2', site_id: 'shelter_2', online: true, last_frame_at: minutesAgo(now, 0) },
-      { camera_id: 'cam_s3', site_id: 'shelter_3', online: true, last_frame_at: minutesAgo(now, 0) },
-      { camera_id: 'cam_s4', site_id: 'shelter_4', online: false, last_frame_at: minutesAgo(now, 14) },
-    ],
+    // No simulated cameras: the only camera tiles are the real ones from the CV service
+    // (laptop, phone, robot). Shelters still get simulated headcounts; a real camera at a
+    // shelter replaces that shelter's simulated count (cvOverlay.mergeCv).
+    cameras: [],
     peopleCounts: [
-      { site_id: 'shelter_1', camera_id: 'cam_s1', timestamp: minutesAgo(now, 0), people_count: 220, confidence: 0.91 },
-      { site_id: 'shelter_2', camera_id: 'cam_s2', timestamp: minutesAgo(now, 0), people_count: 260, confidence: 0.88 },
-      { site_id: 'shelter_3', camera_id: 'cam_s3', timestamp: minutesAgo(now, 0), people_count: 170, confidence: 0.9 },
-      { site_id: 'shelter_4', camera_id: 'cam_s4', timestamp: minutesAgo(now, 14), people_count: 90, confidence: 0.82 },
+      { site_id: 'shelter_1', camera_id: 'sim_s1', timestamp: minutesAgo(now, 0), people_count: 220, confidence: 0.91 },
+      { site_id: 'shelter_2', camera_id: 'sim_s2', timestamp: minutesAgo(now, 0), people_count: 260, confidence: 0.88 },
+      { site_id: 'shelter_3', camera_id: 'sim_s3', timestamp: minutesAgo(now, 0), people_count: 170, confidence: 0.9 },
+      { site_id: 'shelter_4', camera_id: 'sim_s4', timestamp: minutesAgo(now, 0), people_count: 90, confidence: 0.82 },
     ],
     inventory: seedInventory(now),
     dispatches: [
